@@ -9,7 +9,7 @@ st.set_page_config(
 )
 
 # Fichier de stockage des données
-DB_FILE = "demandes_epi.csv"
+DB_FILE = "demandes_epi_officiel.csv"
 
 
 # Fonction pour charger les données
@@ -23,14 +23,22 @@ def charger_donnees():
             "Nom",
             "Prénom",
             "Téléphone",
-            "Blouse",
-            "Casque",
-            "Gants isolants",
+            "Promotion",
+            "Résidence",
+            "Lunettes (1er choix)",
+            "Lunettes (2eme choix)",
+            "Gants d'électricité (1er choix)",
+            "Gants d'électricité (2eme choix)",
             "Gants de manutention",
-            "Lunettes de protection",
-            "Multimètre",
-            "Chaussures de sécurité",
+            "Casque (1er choix)",
+            "Casque (2eme choix)",
+            "Chaussures - BEO WORK",
+            "Chaussures - AMSTRON",
+            "Chaussures - WALKMANDER",
+            "Chaussures - Delta plus",
             "Pointure Chaussures",
+            "Multimètre",
+            "Blouse TP chimie",
         ]
     )
 
@@ -40,20 +48,10 @@ def sauvegarder_donnees(df):
   df.to_csv(DB_FILE, index=False)
 
 
-# Liste des EPI standards
-liste_epi_simples = [
-    "Blouse",
-    "Casque",
-    "Gants isolants",
-    "Gants de manutention",
-    "Lunettes de protection",
-    "Multimètre",
-]
-
 # --- MENU DE NAVIGATION ---
 st.sidebar.title("Navigation 🦺")
 menu = st.sidebar.radio(
-    "Aller vers", ["Espace Étudiant (L1)", "Espace Administrateur"]
+    "Aller vers", ["Espace Étudiant (L1 / BP)", "Espace Administrateur"]
 )
 
 # ==========================================
@@ -67,39 +65,117 @@ st.markdown(
 st.divider()
 
 # ==========================================
-# 1. ESPACE ÉTUDIANT (L1)
+# 1. ESPACE ÉTUDIANT
 # ==========================================
-if menu == "Espace Étudiant (L1)":
-  st.title("🦺 Demande d'EPI - Étudiants L1")
+if menu == "Espace Étudiant (L1 / BP)":
+  st.title("🦺 Fiche de Recensement des EPI - UCAC-ICAM")
   st.markdown(
-      "Remplis tes informations et coche les équipements qu'il te manque."
+      "Remplis tes informations personnelles et indique les équipements dont"
+      " tu as besoin."
   )
 
-  # Utilisation d'un st.form pour bloquer l'envoi si les champs obligatoires sont vides (évite les doublons)
-  with st.form("form_epi_securise"):
-    st.subheader("1. Vos Informations Personnelles")
+  with st.form("form_epi_officiel"):
+    st.subheader("1. Informations Personnelles")
     col1, col2 = st.columns(2)
     with col1:
       nom = st.text_input("Nom *").strip().upper()
+      promotion = st.radio("Promotion *", ["L1", "BP"], horizontal=True)
     with col2:
       prenom = st.text_input("Prénom *").strip().capitalize()
+      residence = st.radio(
+          "Résident(e) *", ["Interne", "Externe"], horizontal=True
+      )
 
     telephone = st.text_input("Numéro de téléphone *").strip()
 
     st.divider()
-    st.subheader("2. Quels sont les EPI qu'il vous manque ?")
+    st.subheader(
+        "2. Choix des Équipements (Cochez 'Je veux' ou 'J'ai déjà')"
+    )
 
-    # Cases à cocher pour les EPI standards
-    choix_epi = {}
-    for epi in liste_epi_simples:
-      choix_epi[epi] = st.checkbox(epi)
+    # Dictionnaire pour stocker les sélections
+    choix_articles = {}
 
-    # Chaussures de sécurité et pointure (30 à 47)
-    besoin_chaussures = st.checkbox("Chaussures de sécurité")
+    # Tableau / Liste interactive des EPI officiels
+    st.markdown("### 👓 Lunettes de protection (1 500 F)")
+    choix_articles["Lunettes (1er choix)"] = st.radio(
+        "Lunettes de protection 1er choix (1500F)",
+        ["Je veux", "J'ai déjà"],
+        horizontal=True,
+        index=1,
+    )
+    choix_articles["Lunettes (2eme choix)"] = st.radio(
+        "Lunettes de protection 2eme choix (1500F)",
+        ["Je veux", "J'ai déjà"],
+        horizontal=True,
+        index=1,
+    )
+
+    st.markdown("### ⚡ Gants d'électricité (1 500 F)")
+    choix_articles["Gants d'électricité (1er choix)"] = st.radio(
+        "Gants d'électricité 1er choix (1500F)",
+        ["Je veux", "J'ai déjà"],
+        horizontal=True,
+        index=1,
+    )
+    choix_articles["Gants d'électricité (2eme choix)"] = st.radio(
+        "Gants d'électricité 2eme choix (1500F)",
+        ["Je veux", "J'ai déjà"],
+        horizontal=True,
+        index=1,
+    )
+
+    st.markdown("### 🛠️ Gants de manutention (2 000 F)")
+    choix_articles["Gants de manutention"] = st.radio(
+        "Gants de manutention (2000F)",
+        ["Je veux", "J'ai déjà"],
+        horizontal=True,
+        index=1,
+    )
+
+    st.markdown("### ⛑️ Casque de sécurité")
+    choix_articles["Casque (1er choix)"] = st.radio(
+        "Casque de sécurité 1er choix (5000F)",
+        ["Je veux", "J'ai déjà"],
+        horizontal=True,
+        index=1,
+    )
+    choix_articles["Casque (2eme choix)"] = st.radio(
+        "Casque de sécurité 2eme choix (3000F)",
+        ["Je veux", "J'ai déjà"],
+        horizontal=True,
+        index=1,
+    )
+
+    st.markdown("### 👞 Chaussures de protection")
+    choix_articles["Chaussures - BEO WORK"] = st.radio(
+        "BEO WORK (12000F)", ["Je veux", "J'ai déjà"], horizontal=True, index=1
+    )
+    choix_articles["Chaussures - AMSTRON"] = st.radio(
+        "AMSTRON (12000F)", ["Je veux", "J'ai déjà"], horizontal=True, index=1
+    )
+    choix_articles["Chaussures - WALKMANDER"] = st.radio(
+        "WALKMANDER (10000F)", ["Je veux", "J'ai déjà"], horizontal=True, index=1
+    )
+    choix_articles["Chaussures - Delta plus"] = st.radio(
+        "Delta plus (15000F)", ["Je veux", "J'ai déjà"], horizontal=True, index=1
+    )
+
     pointure = st.selectbox(
-        "👟 Précisez votre pointure de sécurité (si coché ci-dessus) :",
+        "👟 Précisez votre pointure de chaussures (30 à 47) :",
         options=[str(p) for p in range(30, 48)],
         index=11,  # Par défaut 41
+    )
+
+    st.markdown("### 🔌 Multimètre & Blouse")
+    choix_articles["Multimètre"] = st.radio(
+        "MULTIMETRE (20000F)", ["Je veux", "J'ai déjà"], horizontal=True, index=1
+    )
+    choix_articles["Blouse TP chimie"] = st.radio(
+        "Blouse de TP chimie (4000F)",
+        ["Je veux", "J'ai déjà"],
+        horizontal=True,
+        index=1,
     )
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -111,12 +187,12 @@ if menu == "Espace Étudiant (L1)":
       if not nom or not prenom or not telephone:
         st.error(
             "⚠️ Veuillez impérativement remplir votre Nom, Prénom et Numéro de"
-            " téléphone avant de soumettre."
+            " téléphone."
         )
       else:
         df = charger_donnees()
 
-        # Vérification anti-doublon (si l'étudiant avec le même nom/prénom/téléphone existe déjà)
+        # Vérification anti-doublon
         doublon = False
         if not df.empty:
           doublon = (
@@ -131,23 +207,18 @@ if menu == "Espace Étudiant (L1)":
               " ces informations !"
           )
         else:
-          # Enregistrement de la nouvelle demande
           nouvelle_demande = {
               "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
               "Nom": nom,
               "Prénom": prenom,
               "Téléphone": telephone,
+              "Promotion": promotion,
+              "Résidence": residence,
+              "Pointure Chaussures": pointure,
           }
 
-          for epi in liste_epi_simples:
-            nouvelle_demande[epi] = "Oui" if choix_epi[epi] else "Non"
-
-          nouvelle_demande["Chaussures de sécurité"] = (
-              "Oui" if besoin_chaussures else "Non"
-          )
-          nouvelle_demande["Pointure Chaussures"] = (
-              str(pointure) if besoin_chaussures else "N/A"
-          )
+          for article, choix in choix_articles.items():
+            nouvelle_demande[article] = choix
 
           df = pd.concat(
               [df, pd.DataFrame([nouvelle_demande])], ignore_index=True
@@ -155,8 +226,8 @@ if menu == "Espace Étudiant (L1)":
           sauvegarder_donnees(df)
 
           st.success(
-              f"✅ Merci {prenom} ! Tes besoins en EPI ont bien été transmis à"
-              " l'administration en toute sécurité."
+              f"✅ Merci {prenom} ! Tes informations ont bien été transmises à"
+              " l'administration."
           )
 
 # ==========================================
@@ -179,83 +250,120 @@ elif menu == "Espace Administrateur":
     if df.empty:
       st.info("Aucune demande enregistrée pour le moment.")
     else:
-      # Compteur total d'étudiants enregistrés
       st.info(
-          f"📊 Nombre total d'étudiants ayant soumis leur demande :"
+          f"📊 Nombre total d'étudiants ayant soumis leur fiche :"
           f" **{len(df)}**"
       )
 
+      # Tri automatique par ordre alphabétique
+      df = df.sort_values(by=["Nom", "Prénom"], ascending=[True, True])
+
       # ==========================================
-      # SECTION A : RECENSEMENT GLOBAL À ACHETER
+      # SECTION A : RECENSEMENT GLOBAL DES ACHATS
       # ==========================================
-      st.header("📊 1. Recensement global des achats à effectuer")
+      st.header("📊 1. Recensement global des achats et des coûts")
       st.markdown(
-          "Voici la quantité totale d'équipements à commander pour toute la"
-          " promo :"
+          "Voici les quantités totales à commander pour chaque équipement"
+          " demandé ('Je veux') :"
       )
 
-      # Calcul des totaux
-      tous_les_epi = liste_epi_simples + ["Chaussures de sécurité"]
-      totaux = {epi: (df[epi] == "Oui").sum() for epi in tous_les_epi}
+      # Dictionnaire des prix unitaires officiels
+      prix_unitaires = {
+          "Lunettes (1er choix)": 1500,
+          "Lunettes (2eme choix)": 1500,
+          "Gants d'électricité (1er choix)": 1500,
+          "Gants d'électricité (2eme choix)": 1500,
+          "Gants de manutention": 2000,
+          "Casque (1er choix)": 5000,
+          "Casque (2eme choix)": 3000,
+          "Chaussures - BEO WORK": 12000,
+          "Chaussures - AMSTRON": 12000,
+          "Chaussures - WALKMANDER": 10000,
+          "Chaussures - Delta plus": 15000,
+          "Multimètre": 20000,
+          "Blouse TP chimie": 4000,
+      }
 
-      # Affichage sous forme de métriques
-      cols = st.columns(3)
-      for idx, (epi, total) in enumerate(totaux.items()):
-        with cols[idx % 3]:
-          st.metric(label=f"Totaux {epi}", value=int(total))
+      recensement_data = []
+      for article, prix in prix_unitaires.items():
+        if article in df.columns:
+          quantite = (df[article] == "Je veux").sum()
+          total_fcfa = quantite * prix
+          recensement_data.append({
+              "Équipement": article,
+              "Prix unitaire": f"{prix:,} F",
+              "Quantité à commander": int(quantite),
+              "Coût Total": f"{total_fcfa:,} F",
+          })
 
-      # Détail des pointures de chaussures
-      if totaux["Chaussures de sécurité"] > 0:
-        st.subheader("👟 Détail des pointures de chaussures à commander")
-        df_chaussures = df[df["Chaussures de sécurité"] == "Oui"]
+      df_recensement = pd.DataFrame(recensement_data)
+      st.dataframe(df_recensement, use_container_width=True)
+
+      # Détail des pointures de chaussures demandées
+      st.subheader("👟 Répartition des pointures de chaussures demandées")
+      chaussures_cols = [
+          "Chaussures - BEO WORK",
+          "Chaussures - AMSTRON",
+          "Chaussures - WALKMANDER",
+          "Chaussures - Delta plus",
+      ]
+      # Filtrer les étudiants qui veulent au moins une paire de chaussures
+      df_chaussures_voulues = df[
+          (df[chaussures_cols] == "Je veux").any(axis=1)
+      ]
+      if not df_chaussures_voulues.empty:
         decompte_pointures = (
-            df_chaussures["Pointure Chaussures"]
+            df_chaussures_voulues["Pointure Chaussures"]
             .value_counts()
             .reset_index()
         )
-        decompte_pointures.columns = ["Pointure", "Quantité à acheter"]
+        decompte_pointures.columns = ["Pointure", "Quantité"]
         st.table(decompte_pointures)
+      else:
+        st.info("Aucune demande de chaussures pour le moment.")
 
       st.divider()
 
       # ==========================================
-      # SECTION B : DÉTAIL PAR ÉTUDIANT (QUI A BESOIN DE QUOI)
+      # SECTION B : DÉTAIL PAR ÉTUDIANT
       # ==========================================
-      st.header("📋 2. Détail nominatif (Qui a besoin de quoi ?)")
+      st.header(
+          "📋 2. Détail nominatif (Trié par ordre alphabétique)"
+      )
       st.markdown(
-          "Consultez les besoins individuels et les coordonnées de chaque"
-          " étudiant :"
+          "Consultez les choix individuels, la promotion et les coordonnées de"
+          " chaque étudiant :"
       )
 
 
       def construire_resume_besoins(row):
         manquants = []
-        for epi in liste_epi_simples:
-          if row[epi] == "Oui":
-            manquants.append(epi)
-        if row["Chaussures de sécurité"] == "Oui":
-          manquants.append(
-              f"Chaussures de sécurité (Pointure {row['Pointure Chaussures']})"
-          )
-
-        if len(manquants) == 0:
-          return "Aucun manque"
+        for article in prix_unitaires.keys():
+          if row[article] == "Je veux":
+            if "Chaussures" in article:
+              manquants.append(f"{article} (Pointure {row['Pointure Chaussures']})")
+            else:
+              manquants.append(article)
+        if not manquants:
+          return "Rien à commander"
         return ", ".join(manquants)
 
 
-      df_affichage = df[["Nom", "Prénom", "Téléphone", "Date"]].copy()
-      df_affichage["Équipements manquants"] = df.apply(
+      df_affichage = df[
+          ["Nom", "Prénom", "Téléphone", "Promotion", "Résidence", "Date"]
+      ].copy()
+      df_affichage["Équipements demandés"] = df.apply(
           construire_resume_besoins, axis=1
       )
 
       st.dataframe(df_affichage, use_container_width=True)
 
-      # Option de téléchargement du tableau complet
+      # Option de téléchargement
       csv = df.to_csv(index=False).encode("utf-8")
       st.download_button(
           label="📥 Télécharger la base de données complète (CSV)",
           data=csv,
-          file_name=f"recensement_epi_l1_{datetime.now().strftime('%Y-%m-%d')}.csv",
+          file_name=f"recensement_epi_officiel_{datetime.now().strftime('%Y-%m-%d')}.csv",
           mime="text/csv",
       )
 
