@@ -57,13 +57,14 @@ menu = st.sidebar.radio(
 )
 
 # ==========================================
-# BANDEAU DE REMERCIEMENTS (EN HAUT DE PAGE)
+# REMERCIEMENTS (EN HAUT DE PAGE - TEXTE BLANC)
 # ==========================================
-st.info(
+st.markdown(
     "💡 **Projet collaboratif** — Remerciements particuliers à"
     " **Gedidia-chérubin L2-2030** pour sa contribution à la création de cette"
     " application 🦺"
 )
+st.divider()
 
 # ==========================================
 # 1. ESPACE ÉTUDIANT (L1)
