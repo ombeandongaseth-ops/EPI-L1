@@ -89,26 +89,27 @@ if menu == "Espace Étudiant (L1 / BP)":
     telephone = st.text_input("Numéro de téléphone *").strip()
 
     st.divider()
-    st.subheader(
-        "2. Choix des Équipements (Cochez 'Je veux' ou 'J'ai déjà')"
+    st.subheader("2. Choix des Équipements")
+    st.markdown(
+        "_Veuillez préciser pour chaque article si vous le voulez ou si vous"
+        " l'avez déjà._"
     )
 
-    # Dictionnaire pour stocker les sélections
     choix_articles = {}
 
-    # Tableau / Liste interactive des EPI officiels
+    # Utilisation de index=None pour qu'aucun choix ne soit sélectionné par défaut
     st.markdown("### 👓 Lunettes de protection (1 500 F)")
     choix_articles["Lunettes (1er choix)"] = st.radio(
         "Lunettes de protection 1er choix (1500F)",
         ["Je veux", "J'ai déjà"],
         horizontal=True,
-        index=1,
+        index=None,
     )
     choix_articles["Lunettes (2eme choix)"] = st.radio(
         "Lunettes de protection 2eme choix (1500F)",
         ["Je veux", "J'ai déjà"],
         horizontal=True,
-        index=1,
+        index=None,
     )
 
     st.markdown("### ⚡ Gants d'électricité (1 500 F)")
@@ -116,13 +117,13 @@ if menu == "Espace Étudiant (L1 / BP)":
         "Gants d'électricité 1er choix (1500F)",
         ["Je veux", "J'ai déjà"],
         horizontal=True,
-        index=1,
+        index=None,
     )
     choix_articles["Gants d'électricité (2eme choix)"] = st.radio(
         "Gants d'électricité 2eme choix (1500F)",
         ["Je veux", "J'ai déjà"],
         horizontal=True,
-        index=1,
+        index=None,
     )
 
     st.markdown("### 🛠️ Gants de manutention (2 000 F)")
@@ -130,7 +131,7 @@ if menu == "Espace Étudiant (L1 / BP)":
         "Gants de manutention (2000F)",
         ["Je veux", "J'ai déjà"],
         horizontal=True,
-        index=1,
+        index=None,
     )
 
     st.markdown("### ⛑️ Casque de sécurité")
@@ -138,27 +139,30 @@ if menu == "Espace Étudiant (L1 / BP)":
         "Casque de sécurité 1er choix (5000F)",
         ["Je veux", "J'ai déjà"],
         horizontal=True,
-        index=1,
+        index=None,
     )
     choix_articles["Casque (2eme choix)"] = st.radio(
         "Casque de sécurité 2eme choix (3000F)",
         ["Je veux", "J'ai déjà"],
         horizontal=True,
-        index=1,
+        index=None,
     )
 
     st.markdown("### 👞 Chaussures de protection")
     choix_articles["Chaussures - BEO WORK"] = st.radio(
-        "BEO WORK (12000F)", ["Je veux", "J'ai déjà"], horizontal=True, index=1
+        "BEO WORK (12000F)", ["Je veux", "J'ai déjà"], horizontal=True, index=None
     )
     choix_articles["Chaussures - AMSTRON"] = st.radio(
-        "AMSTRON (12000F)", ["Je veux", "J'ai déjà"], horizontal=True, index=1
+        "AMSTRON (12000F)", ["Je veux", "J'ai déjà"], horizontal=True, index=None
     )
     choix_articles["Chaussures - WALKMANDER"] = st.radio(
-        "WALKMANDER (10000F)", ["Je veux", "J'ai déjà"], horizontal=True, index=1
+        "WALKMANDER (10000F)",
+        ["Je veux", "J'ai déjà"],
+        horizontal=True,
+        index=None,
     )
     choix_articles["Chaussures - Delta plus"] = st.radio(
-        "Delta plus (15000F)", ["Je veux", "J'ai déjà"], horizontal=True, index=1
+        "Delta plus (15000F)", ["Je veux", "J'ai déjà"], horizontal=True, index=None
     )
 
     pointure = st.selectbox(
@@ -169,13 +173,16 @@ if menu == "Espace Étudiant (L1 / BP)":
 
     st.markdown("### 🔌 Multimètre & Blouse")
     choix_articles["Multimètre"] = st.radio(
-        "MULTIMETRE (20000F)", ["Je veux", "J'ai déjà"], horizontal=True, index=1
+        "MULTIMETRE (20000F)",
+        ["Je veux", "J'ai déjà"],
+        horizontal=True,
+        index=None,
     )
     choix_articles["Blouse TP chimie"] = st.radio(
         "Blouse de TP chimie (4000F)",
         ["Je veux", "J'ai déjà"],
         horizontal=True,
-        index=1,
+        index=None,
     )
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -218,7 +225,8 @@ if menu == "Espace Étudiant (L1 / BP)":
           }
 
           for article, choix in choix_articles.items():
-            nouvelle_demande[article] = choix
+            # Si l'étudiant n'a rien coché sur une ligne, on met "Non spécifié" par défaut
+            nouvelle_demande[article] = choix if choix is not None else "Aucun"
 
           df = pd.concat(
               [df, pd.DataFrame([nouvelle_demande])], ignore_index=True
@@ -267,7 +275,6 @@ elif menu == "Espace Administrateur":
           " demandé ('Je veux') :"
       )
 
-      # Dictionnaire des prix unitaires officiels
       prix_unitaires = {
           "Lunettes (1er choix)": 1500,
           "Lunettes (2eme choix)": 1500,
@@ -307,7 +314,6 @@ elif menu == "Espace Administrateur":
           "Chaussures - WALKMANDER",
           "Chaussures - Delta plus",
       ]
-      # Filtrer les étudiants qui veulent au moins une paire de chaussures
       df_chaussures_voulues = df[
           (df[chaussures_cols] == "Je veux").any(axis=1)
       ]
