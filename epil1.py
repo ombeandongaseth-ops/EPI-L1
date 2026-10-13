@@ -17,7 +17,6 @@ def charger_donnees():
   if os.path.exists(DB_FILE):
     return pd.read_csv(DB_FILE, dtype=str)
   else:
-    # DataFrame vide par défaut
     return pd.DataFrame(
         columns=[
             "Date",
@@ -41,7 +40,7 @@ def sauvegarder_donnees(df):
   df.to_csv(DB_FILE, index=False)
 
 
-# Liste des EPI
+# Liste des EPI standards
 liste_epi_simples = [
     "Blouse",
     "Casque",
@@ -66,73 +65,73 @@ if menu == "Espace Étudiant (L1)":
       "Remplis tes informations et coche les équipements qu'il te manque."
   )
 
-  with st.form("form_epi"):
-    st.subheader("1. Vos Informations Personnelles")
-    col1, col2 = st.columns(2)
-    with col1:
-      nom = st.text_input("Nom").strip().upper()
-    with col2:
-      prenom = st.text_input("Prénom").strip().capitalize()
+  # Saisie des informations personnelles
+  st.subheader("1. Vos Informations Personnelles")
+  col1, col2 = st.columns(2)
+  with col1:
+    nom = st.text_input("Nom").strip().upper()
+  with col2:
+    prenom = st.text_input("Prénom").strip().capitalize()
 
-    telephone = st.text_input("Numéro de téléphone").strip()
+  telephone = st.text_input("Numéro de téléphone").strip()
 
-    st.subheader("2. Quels sont les EPI qu'il vous manque ?")
+  st.divider()
+  st.subheader("2. Quels sont les EPI qu'il vous manque ?")
 
-    # Cases à cocher pour les EPI standards
-    choix_epi = {}
-    for epi in liste_epi_simples:
-      choix_epi[epi] = st.checkbox(epi)
+  # Cases à cocher pour les EPI standards
+  choix_epi = {}
+  for epi in liste_epi_simples:
+    choix_epi[epi] = st.checkbox(epi)
 
-    # Cas particulier : Chaussures de sécurité + Pointure
-    besoin_chaussures = st.checkbox("Chaussures de sécurité")
-    pointure = ""
-    if besoin_chaussures:
-      pointure = st.selectbox(
-          "Précisez votre pointure :",
-          options=[
-              str(p) for p in range(35, 49)
-          ],  # Propose les pointures de 35 à 48
-          index=6,  # Sélectionne 41 par défaut
+  # Cas particulier des chaussures de sécurité avec affichage dynamique de la pointure
+  besoin_chaussures = st.checkbox("Chaussures de sécurité")
+  pointure = "N/A"
+
+  if besoin_chaussures:
+    # Ce bloc s'affiche dynamiquement dès que l'étudiant coche la case
+    pointure = st.selectbox(
+        "👟 Précisez votre pointure de sécurité :",
+        options=[str(p) for p in range(35, 49)],  # De 35 à 48
+        index=6,  # 41 par défaut
+    )
+
+  st.markdown("<br>", unsafe_allow_html=True)
+
+  # Bouton de soumission hors formulaire pour permettre l'interactivité fluide
+  if st.button(
+      "Soumettre ma demande", type="primary", use_container_width=True
+  ):
+    if not nom or not prenom or not telephone:
+      st.error("⚠️ Veuillez remplir votre Nom, Prénom et Numéro de téléphone.")
+    else:
+      df = charger_donnees()
+
+      # Enregistrement des données
+      nouvelle_demande = {
+          "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+          "Nom": nom,
+          "Prénom": prenom,
+          "Téléphone": telephone,
+      }
+
+      # Remplissage pour les EPI standards
+      for epi in liste_epi_simples:
+        nouvelle_demande[epi] = "Oui" if choix_epi[epi] else "Non"
+
+      # Remplissage pour les chaussures et la pointure
+      nouvelle_demande["Chaussures de sécurité"] = (
+          "Oui" if besoin_chaussures else "Non"
       )
+      nouvelle_demande["Pointure Chaussures"] = str(pointure)
 
-    submitted = st.form_submit_button("Soumettre ma demande")
+      # Ajout au DataFrame et sauvegarde
+      df = pd.concat([df, pd.DataFrame([nouvelle_demande])], ignore_index=True)
+      sauvegarder_donnees(df)
 
-    if submitted:
-      if not nom or not prenom or not telephone:
-        st.error(
-            "⚠️ Veuillez remplir votre Nom, Prénom et Numéro de téléphone."
-        )
-      else:
-        df = charger_donnees()
-
-        # Enregistrement des données
-        nouvelle_demande = {
-            "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Nom": nom,
-            "Prénom": prenom,
-            "Téléphone": telephone,
-        }
-
-        # Remplissage pour les EPI standards
-        for epi in liste_epi_simples:
-          nouvelle_demande[epi] = "Oui" if choix_epi[epi] else "Non"
-
-        # Remplissage pour les chaussures
-        nouvelle_demande["Chaussures de sécurité"] = (
-            "Oui" if besoin_chaussures else "Non"
-        )
-        nouvelle_demande["Pointure Chaussures"] = (
-            str(pointure) if besoin_chaussures else "N/A"
-        )
-
-        # Ajout au DataFrame et sauvegarde
-        df = pd.concat([df, pd.DataFrame([nouvelle_demande])], ignore_index=True)
-        sauvegarder_donnees(df)
-
-        st.success(
-            f"✅ Merci {prenom} ! Tes besoins en EPI ont bien été transmis à"
-            " l'administration."
-        )
+      st.success(
+          f"✅ Merci {prenom} ! Tes besoins en EPI ont bien été transmis à"
+          " l'administration."
+      )
 
 # ==========================================
 # 2. ESPACE ADMINISTRATEUR
@@ -181,13 +180,8 @@ elif menu == "Espace Administrateur":
             df_chaussures["Pointure Chaussures"]
             .value_counts()
             .reset_index()
-            .rename(
-                columns={
-                    "Pointure Chaussures": "Pointure",
-                    "count": "Quantité à acheter",
-                }
-            )
         )
+        decompte_pointures.columns = ["Pointure", "Quantité à acheter"]
         st.table(decompte_pointures)
 
       st.divider()
@@ -201,7 +195,7 @@ elif menu == "Espace Administrateur":
           " étudiant :"
       )
 
-      # On formatte un tableau plus lisible pour l'admin
+
       def construire_resume_besoins(row):
         manquants = []
         for epi in liste_epi_simples:
@@ -215,6 +209,7 @@ elif menu == "Espace Administrateur":
         if len(manquants) == 0:
           return "Aucun manque"
         return ", ".join(manquants)
+
 
       df_affichage = df[["Nom", "Prénom", "Téléphone", "Date"]].copy()
       df_affichage["Équipements manquants"] = df.apply(
