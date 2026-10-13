@@ -11,36 +11,39 @@ st.set_page_config(
 # Fichier de stockage des données
 DB_FILE = "demandes_epi_officiel.csv"
 
+# Dictionnaire des prix unitaires officiels
+PRIX_UNITAIRES = {
+    "Lunettes (1er choix)": 1500,
+    "Lunettes (2eme choix)": 1500,
+    "Gants d'électricité (1er choix)": 1500,
+    "Gants d'électricité (2eme choix)": 1500,
+    "Gants de manutention": 2000,
+    "Casque (1er choix)": 5000,
+    "Casque (2eme choix)": 3000,
+    "Chaussures - BEO WORK": 12000,
+    "Chaussures - AMSTRON": 12000,
+    "Chaussures - WALKMANDER": 10000,
+    "Chaussures - Delta plus": 15000,
+    "Multimètre": 20000,
+    "Blouse TP chimie": 4000,
+}
+
 
 # Fonction pour charger les données
 def charger_donnees():
   if os.path.exists(DB_FILE):
     return pd.read_csv(DB_FILE, dtype=str)
   else:
-    return pd.DataFrame(
-        columns=[
-            "Date",
-            "Nom",
-            "Prénom",
-            "Téléphone",
-            "Promotion",
-            "Résidence",
-            "Lunettes (1er choix)",
-            "Lunettes (2eme choix)",
-            "Gants d'électricité (1er choix)",
-            "Gants d'électricité (2eme choix)",
-            "Gants de manutention",
-            "Casque (1er choix)",
-            "Casque (2eme choix)",
-            "Chaussures - BEO WORK",
-            "Chaussures - AMSTRON",
-            "Chaussures - WALKMANDER",
-            "Chaussures - Delta plus",
-            "Pointure Chaussures",
-            "Multimètre",
-            "Blouse TP chimie",
-        ]
-    )
+    colonnes = [
+        "Date",
+        "Nom",
+        "Prénom",
+        "Téléphone",
+        "Promotion",
+        "Résidence",
+        "Pointure Chaussures",
+    ] + list(PRIX_UNITAIRES.keys())
+    return pd.DataFrame(columns=colonnes)
 
 
 # Fonction pour sauvegarder les données
@@ -97,7 +100,6 @@ if menu == "Espace Étudiant (L1 / BP)":
 
     choix_articles = {}
 
-    # Utilisation de index=None pour qu'aucun choix ne soit sélectionné par défaut
     st.markdown("### 👓 Lunettes de protection (1 500 F)")
     choix_articles["Lunettes (1er choix)"] = st.radio(
         "Lunettes de protection 1er choix (1500F)",
@@ -214,6 +216,15 @@ if menu == "Espace Étudiant (L1 / BP)":
               " ces informations !"
           )
         else:
+          # Calcul du montant total à payer pour cet étudiant
+          montant_total = 0
+          articles_demandes = []
+          for article, choix in choix_articles.items():
+            statut = choix if choix is not None else "Aucun"
+            if statut == "Je veux":
+              montant_total += PRIX_UNITAIRES[article]
+              articles_demandes.append(article)
+
           nouvelle_demande = {
               "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
               "Nom": nom,
@@ -225,7 +236,6 @@ if menu == "Espace Étudiant (L1 / BP)":
           }
 
           for article, choix in choix_articles.items():
-            # Si l'étudiant n'a rien coché sur une ligne, on met "Non spécifié" par défaut
             nouvelle_demande[article] = choix if choix is not None else "Aucun"
 
           df = pd.concat(
@@ -237,6 +247,31 @@ if menu == "Espace Étudiant (L1 / BP)":
               f"✅ Merci {prenom} ! Tes informations ont bien été transmises à"
               " l'administration."
           )
+
+          # --- AFFICHAGE DE LA FACTURE ET CONTACT DU BDE ---
+          st.markdown("---")
+          st.subheader("💳 Récapitulatif de votre commande et Paiement")
+          if montant_total > 0:
+            st.info(
+                f"💰 **Montant total à régler : {montant_total:,} FCFA**"
+            )
+            st.write(
+                "**Équipements commandés :** " + ", ".join(articles_demandes)
+            )
+
+            st.markdown(
+                "### 📲 Instructions pour le paiement :\n"
+                "Veuillez contacter le **BDE (Bureau Des Étudiants)** pour"
+                " effectuer le règlement de vos équipements :\n"
+                "- **Destinataire :** Le BDE UCAC-ICAM\n"
+                "- **Important :** N'oubliez pas de préciser votre **Nom,"
+                f" Prénom et Promotion ({promotion})** lors du paiement."
+            )
+          else:
+            st.success(
+                "🎉 Vous avez indiqué posséder déjà tous les équipements !"
+                " Aucun frais à payer."
+            )
 
 # ==========================================
 # 2. ESPACE ADMINISTRATEUR
@@ -267,35 +302,18 @@ elif menu == "Espace Administrateur":
       df = df.sort_values(by=["Nom", "Prénom"], ascending=[True, True])
 
       # ==========================================
-      # SECTION A : RECENSEMENT GLOBAL DES ACHATS
+      # SECTION A : RECENSEMENT GLOBAL ET BUDGET TOTAL
       # ==========================================
       st.header("📊 1. Recensement global des achats et des coûts")
-      st.markdown(
-          "Voici les quantités totales à commander pour chaque équipement"
-          " demandé ('Je veux') :"
-      )
-
-      prix_unitaires = {
-          "Lunettes (1er choix)": 1500,
-          "Lunettes (2eme choix)": 1500,
-          "Gants d'électricité (1er choix)": 1500,
-          "Gants d'électricité (2eme choix)": 1500,
-          "Gants de manutention": 2000,
-          "Casque (1er choix)": 5000,
-          "Casque (2eme choix)": 3000,
-          "Chaussures - BEO WORK": 12000,
-          "Chaussures - AMSTRON": 12000,
-          "Chaussures - WALKMANDER": 10000,
-          "Chaussures - Delta plus": 15000,
-          "Multimètre": 20000,
-          "Blouse TP chimie": 4000,
-      }
 
       recensement_data = []
-      for article, prix in prix_unitaires.items():
+      grand_total_general = 0
+
+      for article, prix in PRIX_UNITAIRES.items():
         if article in df.columns:
           quantite = (df[article] == "Je veux").sum()
           total_fcfa = quantite * prix
+          grand_total_general += total_fcfa
           recensement_data.append({
               "Équipement": article,
               "Prix unitaire": f"{prix:,} F",
@@ -303,6 +321,14 @@ elif menu == "Espace Administrateur":
               "Coût Total": f"{total_fcfa:,} F",
           })
 
+      # Affichage en grand du Montant Total Général de la commande
+      st.metric(
+          label="💰 COÛT TOTAL GÉNÉRAL DE TOUS LES ÉQUIPEMENTS À ACHETER",
+          value=f"{grand_total_general:,} FCFA",
+      )
+      st.markdown("<br>", unsafe_allow_html=True)
+
+      # Tableau détaillé par équipement
       df_recensement = pd.DataFrame(recensement_data)
       st.dataframe(df_recensement, use_container_width=True)
 
@@ -344,7 +370,7 @@ elif menu == "Espace Administrateur":
 
       def construire_resume_besoins(row):
         manquants = []
-        for article in prix_unitaires.keys():
+        for article in PRIX_UNITAIRES.keys():
           if row[article] == "Je veux":
             if "Chaussures" in article:
               manquants.append(f"{article} (Pointure {row['Pointure Chaussures']})")
