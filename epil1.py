@@ -57,6 +57,15 @@ menu = st.sidebar.radio(
 )
 
 # ==========================================
+# BANDEAU DE REMERCIEMENTS (EN HAUT DE PAGE)
+# ==========================================
+st.info(
+    "💡 **Projet collaboratif** — Remerciements particuliers à"
+    " **Gedidia-chérubin L2-2030** pour sa contribution à la création de cette"
+    " application 🦺"
+)
+
+# ==========================================
 # 1. ESPACE ÉTUDIANT (L1)
 # ==========================================
 if menu == "Espace Étudiant (L1)":
@@ -231,14 +240,3 @@ elif menu == "Espace Administrateur":
           if os.path.exists(DB_FILE):
             os.remove(DB_FILE)
             st.rerun()
-
-# ==========================================
-# FOOTER / REMERCIEMENTS
-# ==========================================
-st.markdown("<br><hr>", unsafe_allow_html=True)
-st.markdown(
-    "<div style='text-align: center; color: gray;'>Remerciements à"
-    " <b>Gedidia-chérubin L2-2030</b> pour avoir contribué à la création"
-    " du projet 🦺</div>",
-    unsafe_allow_html=True,
-)
