@@ -83,21 +83,19 @@ if menu == "Espace Étudiant (L1)":
   for epi in liste_epi_simples:
     choix_epi[epi] = st.checkbox(epi)
 
-  # Cas particulier des chaussures de sécurité avec affichage dynamique de la pointure
+  # Cas particulier des chaussures de sécurité avec affichage dynamique de la pointure (30 à 47)
   besoin_chaussures = st.checkbox("Chaussures de sécurité")
   pointure = "N/A"
 
   if besoin_chaussures:
-    # Ce bloc s'affiche dynamiquement dès que l'étudiant coche la case
     pointure = st.selectbox(
         "👟 Précisez votre pointure de sécurité :",
-        options=[str(p) for p in range(35, 49)],  # De 35 à 48
-        index=6,  # 41 par défaut
+        options=[str(p) for p in range(30, 48)],  # Plage de 30 à 47
+        index=11,  # Par défaut autour de 41 (41 - 30 = 11)
     )
 
   st.markdown("<br>", unsafe_allow_html=True)
 
-  # Bouton de soumission hors formulaire pour permettre l'interactivité fluide
   if st.button(
       "Soumettre ma demande", type="primary", use_container_width=True
   ):
@@ -140,7 +138,7 @@ elif menu == "Espace Administrateur":
   st.title("🔐 Espace Administrateur - Gestion & Recensement")
 
   mot_de_passe = st.sidebar.text_input("Mot de passe admin", type="password")
-  ADMIN_PASSWORD = "icam"  # À modifier si besoin
+  ADMIN_PASSWORD = "icam"  # Mot de passe par défaut
 
   if mot_de_passe != ADMIN_PASSWORD:
     st.warning(
@@ -233,3 +231,14 @@ elif menu == "Espace Administrateur":
           if os.path.exists(DB_FILE):
             os.remove(DB_FILE)
             st.rerun()
+
+# ==========================================
+# FOOTER / REMERCIEMENTS
+# ==========================================
+st.markdown("<br><hr>", unsafe_allow_html=True)
+st.markdown(
+    "<div style='text-align: center; color: gray;'>Remerciements à"
+    " <b>Gedidia-chérubin L2-2030</b> pour avoir contribué à la création"
+    " du projet 🦺</div>",
+    unsafe_allow_html=True,
+)
