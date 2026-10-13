@@ -57,7 +57,7 @@ menu = st.sidebar.radio(
 )
 
 # ==========================================
-# REMERCIEMENTS (EN HAUT DE PAGE - TEXTE BLANC)
+# REMERCIEMENTS (EN HAUT DE PAGE)
 # ==========================================
 st.markdown(
     "💡 **Projet collaboratif** — Remerciements particuliers à"
@@ -75,71 +75,89 @@ if menu == "Espace Étudiant (L1)":
       "Remplis tes informations et coche les équipements qu'il te manque."
   )
 
-  # Saisie des informations personnelles
-  st.subheader("1. Vos Informations Personnelles")
-  col1, col2 = st.columns(2)
-  with col1:
-    nom = st.text_input("Nom").strip().upper()
-  with col2:
-    prenom = st.text_input("Prénom").strip().capitalize()
+  # Utilisation d'un st.form pour bloquer l'envoi si les champs obligatoires sont vides (évite les doublons)
+  with st.form("form_epi_securise"):
+    st.subheader("1. Vos Informations Personnelles")
+    col1, col2 = st.columns(2)
+    with col1:
+      nom = st.text_input("Nom *").strip().upper()
+    with col2:
+      prenom = st.text_input("Prénom *").strip().capitalize()
 
-  telephone = st.text_input("Numéro de téléphone").strip()
+    telephone = st.text_input("Numéro de téléphone *").strip()
 
-  st.divider()
-  st.subheader("2. Quels sont les EPI qu'il vous manque ?")
+    st.divider()
+    st.subheader("2. Quels sont les EPI qu'il vous manque ?")
 
-  # Cases à cocher pour les EPI standards
-  choix_epi = {}
-  for epi in liste_epi_simples:
-    choix_epi[epi] = st.checkbox(epi)
+    # Cases à cocher pour les EPI standards
+    choix_epi = {}
+    for epi in liste_epi_simples:
+      choix_epi[epi] = st.checkbox(epi)
 
-  # Cas particulier des chaussures de sécurité avec affichage dynamique de la pointure (30 à 47)
-  besoin_chaussures = st.checkbox("Chaussures de sécurité")
-  pointure = "N/A"
-
-  if besoin_chaussures:
+    # Chaussures de sécurité et pointure (30 à 47)
+    besoin_chaussures = st.checkbox("Chaussures de sécurité")
     pointure = st.selectbox(
-        "👟 Précisez votre pointure de sécurité :",
-        options=[str(p) for p in range(30, 48)],  # Plage de 30 à 47
-        index=11,  # Par défaut autour de 41 (41 - 30 = 11)
+        "👟 Précisez votre pointure de sécurité (si coché ci-dessus) :",
+        options=[str(p) for p in range(30, 48)],
+        index=11,  # Par défaut 41
     )
 
-  st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    submitted = st.form_submit_button(
+        "Soumettre ma demande", type="primary", use_container_width=True
+    )
 
-  if st.button(
-      "Soumettre ma demande", type="primary", use_container_width=True
-  ):
-    if not nom or not prenom or not telephone:
-      st.error("⚠️ Veuillez remplir votre Nom, Prénom et Numéro de téléphone.")
-    else:
-      df = charger_donnees()
+    if submitted:
+      if not nom or not prenom or not telephone:
+        st.error(
+            "⚠️ Veuillez impérativement remplir votre Nom, Prénom et Numéro de"
+            " téléphone avant de soumettre."
+        )
+      else:
+        df = charger_donnees()
 
-      # Enregistrement des données
-      nouvelle_demande = {
-          "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-          "Nom": nom,
-          "Prénom": prenom,
-          "Téléphone": telephone,
-      }
+        # Vérification anti-doublon (si l'étudiant avec le même nom/prénom/téléphone existe déjà)
+        doublon = False
+        if not df.empty:
+          doublon = (
+              (df["Nom"] == nom)
+              & (df["Prénom"] == prenom)
+              & (df["Téléphone"] == telephone)
+          ).any()
 
-      # Remplissage pour les EPI standards
-      for epi in liste_epi_simples:
-        nouvelle_demande[epi] = "Oui" if choix_epi[epi] else "Non"
+        if doublon:
+          st.warning(
+              f"⚠️ {prenom} {nom}, une demande a déjà été enregistrée avec"
+              " ces informations !"
+          )
+        else:
+          # Enregistrement de la nouvelle demande
+          nouvelle_demande = {
+              "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+              "Nom": nom,
+              "Prénom": prenom,
+              "Téléphone": telephone,
+          }
 
-      # Remplissage pour les chaussures et la pointure
-      nouvelle_demande["Chaussures de sécurité"] = (
-          "Oui" if besoin_chaussures else "Non"
-      )
-      nouvelle_demande["Pointure Chaussures"] = str(pointure)
+          for epi in liste_epi_simples:
+            nouvelle_demande[epi] = "Oui" if choix_epi[epi] else "Non"
 
-      # Ajout au DataFrame et sauvegarde
-      df = pd.concat([df, pd.DataFrame([nouvelle_demande])], ignore_index=True)
-      sauvegarder_donnees(df)
+          nouvelle_demande["Chaussures de sécurité"] = (
+              "Oui" if besoin_chaussures else "Non"
+          )
+          nouvelle_demande["Pointure Chaussures"] = (
+              str(pointure) if besoin_chaussures else "N/A"
+          )
 
-      st.success(
-          f"✅ Merci {prenom} ! Tes besoins en EPI ont bien été transmis à"
-          " l'administration."
-      )
+          df = pd.concat(
+              [df, pd.DataFrame([nouvelle_demande])], ignore_index=True
+          )
+          sauvegarder_donnees(df)
+
+          st.success(
+              f"✅ Merci {prenom} ! Tes besoins en EPI ont bien été transmis à"
+              " l'administration en toute sécurité."
+          )
 
 # ==========================================
 # 2. ESPACE ADMINISTRATEUR
@@ -161,6 +179,12 @@ elif menu == "Espace Administrateur":
     if df.empty:
       st.info("Aucune demande enregistrée pour le moment.")
     else:
+      # Compteur total d'étudiants enregistrés
+      st.info(
+          f"📊 Nombre total d'étudiants ayant soumis leur demande :"
+          f" **{len(df)}**"
+      )
+
       # ==========================================
       # SECTION A : RECENSEMENT GLOBAL À ACHETER
       # ==========================================
