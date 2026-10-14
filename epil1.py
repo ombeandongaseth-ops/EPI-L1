@@ -44,10 +44,7 @@ if "live_admins" not in st.session_state:
 
 def nettoyer_et_mettre_a_jour_presence(email):
   now = datetime.now()
-  # Mettre à jour l'heure de dernière activité de l'admin actuel
   st.session_state.live_admins[email] = now
-
-  # Supprimer les admins inactifs depuis plus de 5 minutes
   admins_actifs = {}
   for adm, last_seen in st.session_state.live_admins.items():
     if now - last_seen < timedelta(minutes=5):
@@ -503,13 +500,15 @@ elif menu == "Espace Administrateur":
       st.divider()
 
       # ==========================================
-      # SECTION B : CASES À COCHER & MONTANT DÜ PAR ÉTUDIANT
+      # SECTION B : CASES À COCHER & MONTANT DÜ + POINTURES PAR ÉTUDIANT
       # ==========================================
       st.header(
           "📋 2. Validation des Paiements & Montant Dû par Étudiant"
       )
       st.markdown(
-          "Cochez la case **Payé** pour valider le règlement d'un étudiant."
+          "Cochez la case **Payé** pour valider le règlement d'un étudiant. La"
+          " pointure de chaussures apparaît explicitement pour chaque"
+          " étudiant."
       )
 
 
@@ -520,7 +519,11 @@ elif menu == "Espace Administrateur":
           if row[article] == "Je veux":
             total += prix
             if "Chaussures" in article:
-              manquants.append(f"{article} (Pt {row['Pointure Chaussures']})")
+              # Intègre clairement le nom de la chaussure et la pointure choisie par l'étudiant
+              nom_chaussure = article.replace("Chaussures - ", "")
+              manquants.append(
+                  f"{nom_chaussure} (Pointure {row['Pointure Chaussures']})"
+              )
             else:
               manquants.append(article)
         resume = ", ".join(manquants) if manquants else "Rien à commander"
@@ -536,6 +539,7 @@ elif menu == "Espace Administrateur":
           "Prénom",
           "Promotion",
           "Téléphone",
+          "Pointure Chaussures",
           "Montant Dû",
           "Payé",
           "Équipements demandés",
