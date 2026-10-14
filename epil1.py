@@ -28,7 +28,7 @@ PRIX_UNITAIRES = {
     "Blouse TP chimie": 4000,
 }
 
-# Liste des emails autorisés pour l'administration
+# Liste des emails administrateurs autorisés
 ADMIN_EMAILS = [
     "ninon.ombeandonga@2030.ucac-icam.com",
     "gedidia.mabahou@2030.ucac-icam.com",
@@ -39,7 +39,6 @@ ADMIN_EMAILS = [
 def charger_donnees():
   if os.path.exists(DB_FILE):
     df = pd.read_csv(DB_FILE, dtype=str, encoding="utf-8-sig")
-    # Conversion de l'ancien statut textuel en booléen True/False pour les cases à cocher
     if "Payé" not in df.columns:
       if "Statut Paiement" in df.columns:
         df["Payé"] = df["Statut Paiement"].apply(
@@ -47,7 +46,6 @@ def charger_donnees():
         )
       else:
         df["Payé"] = False
-    # S'assurer que la colonne est bien de type booléen
     df["Payé"] = df["Payé"].astype(bool)
     return df
   else:
@@ -250,7 +248,7 @@ if menu == "Espace Étudiant (L1 / BP)":
           "Promotion": promotion,
           "Résidence": residence,
           "Pointure Chaussures": pointure,
-          "Payé": False,  # Par défaut non payé (case décochée)
+          "Payé": False,
       }
 
       for article, choix in choix_articles.items():
@@ -338,220 +336,238 @@ elif menu == "Annuler ma commande":
             )
 
 # ==========================================
-# 3. ESPACE ADMINISTRATEUR
+# 3. ESPACE ADMINISTRATEUR (Sécurisé par Email et mot de passe)
 # ==========================================
 elif menu == "Espace Administrateur":
   st.title("🔐 Espace Administrateur - Gestion & Recensement")
 
-  if "user" not in st.session_state:
-    st.session_state.user = None
+  if "admin_connecte" not in st.session_state:
+    st.session_state.admin_connecte = False
 
-  user_info = st.experimental_user
-
-  if not user_info or not user_info.is_logged_in:
-    st.warning(
-        "⚠️ Vous devez vous connecter avec votre compte Google UCAC-ICAM"
-        " autorisé pour accéder à cet espace."
+  if not st.session_state.admin_connecte:
+    st.markdown(
+        "Veuillez entrer votre adresse email officielle et le mot de passe"
+        " administrateur :"
     )
-    if st.button("Se connecter avec Google", type="primary"):
-      st.login()
-  else:
-    user_email = user_info.email
-    if user_email not in ADMIN_EMAILS:
-      st.error(
-          f"⛔ Accès refusé. L'adresse **{user_email}** n'est pas autorisée à"
-          " accéder à l'espace administrateur."
-      )
-      if st.button("Se déconnecter"):
-        st.logout()
-    else:
-      st.success(f"🔓 Connecté en tant qu'administrateur : {user_email}")
-      if st.button("Se déconnecter de l'admin"):
-        st.logout()
+    email_saisi = st.text_input(
+        "Email administrateur", placeholder="prenom.nom@2030.ucac-icam.com"
+    ).strip().lower()
+    mdp_saisi = st.text_input("Mot de passe admin", type="password")
 
-      df = charger_donnees()
-
-      if df.empty:
-        st.info("Aucune demande enregistrée pour le moment.")
+    if st.button("Se connecter", type="primary"):
+      if email_saisi in ADMIN_EMAILS and mdp_saisi == "icam":
+        st.session_state.admin_connecte = True
+        st.session_state.current_admin_email = email_saisi
+        st.success("🔓 Connexion réussie !")
+        st.rerun()
       else:
-        st.info(
-            f"📊 Nombre total d'étudiants ayant soumis leur fiche :"
-            f" **{len(df)}**"
+        st.error(
+            "⛔ Accès refusé. Vérifiez votre email (autorisé) et votre mot de"
+            " passe."
         )
+  else:
+    st.success(
+        f"🔓 Connecté en tant qu'administrateur :"
+        f" {st.session_state.current_admin_email}"
+    )
+    if st.button("Se déconnecter"):
+      st.session_state.admin_connecte = False
+      st.rerun()
 
-        df = df.sort_values(by=["Nom", "Prénom"], ascending=[True, True])
-        df = df.reset_index(drop=True)
+    df = charger_donnees()
 
-        # ==========================================
-        # SECTION A : RECENSEMENT GLOBAL ET BUDGET TOTAL
-        # ==========================================
-        st.header("📊 1. Recensement global des achats et des coûts")
+    if df.empty:
+      st.info("Aucune demande enregistrée pour le moment.")
+    else:
+      st.info(
+          f"📊 Nombre total d'étudiants ayant soumis leur fiche :"
+          f" **{len(df)}**"
+      )
 
-        recensement_data = []
-        grand_total_general = 0
+      df = df.sort_values(by=["Nom", "Prénom"], ascending=[True, True])
+      df = df.reset_index(drop=True)
 
-        for article, prix in PRIX_UNITAIRES.items():
-          if article in df.columns:
-            quantite = (df[article] == "Je veux").sum()
-            total_fcfa = quantite * prix
-            grand_total_general += total_fcfa
-            recensement_data.append({
-                "Équipement": article,
-                "Prix unitaire": f"{prix:,} F",
-                "Quantité à commander": int(quantite),
-                "Coût Total": f"{total_fcfa:,} F",
+      # ==========================================
+      # SECTION A : RECENSEMENT GLOBAL ET BUDGET TOTAL
+      # ==========================================
+      st.header("📊 1. Recensement global des achats et des coûts")
+
+      recensement_data = []
+      grand_total_general = 0
+
+      for article, prix in PRIX_UNITAIRES.items():
+        if article in df.columns:
+          quantite = (df[article] == "Je veux").sum()
+          total_fcfa = quantite * prix
+          grand_total_general += total_fcfa
+          recensement_data.append({
+              "Équipement": article,
+              "Prix unitaire": f"{prix:,} F",
+              "Quantité à commander": int(quantite),
+              "Coût Total": f"{total_fcfa:,} F",
+          })
+
+      st.metric(
+          label="💰 COÛT TOTAL GÉNÉRAL DE TOUS LES ÉQUIPEMENTS À ACHETER",
+          value=f"{grand_total_general:,} FCFA",
+      )
+      st.markdown("<br>", unsafe_allow_html=True)
+
+      df_recensement = pd.DataFrame(recensement_data)
+      st.dataframe(df_recensement, use_container_width=True)
+
+      # ==========================================
+      # SECTION CHAUSSURES : MARQUE + POINTURE + PRIX
+      # ==========================================
+      st.subheader(
+          "👟 Détail des chaussures commandées (Marque, Pointure, Prix &"
+          " Quantité)"
+      )
+      chaussures_cols = {
+          "Chaussures - BEO WORK": 12000,
+          "Chaussures - AMSTRON": 12000,
+          "Chaussures - WALKMANDER": 10000,
+          "Chaussures - Delta plus": 15000,
+      }
+
+      details_chaussures = []
+      for col, prix_unit in chaussures_cols.items():
+        df_marque = df[df[col] == "Je veux"]
+        if not df_marque.empty:
+          decompte = df_marque["Pointure Chaussures"].value_counts()
+          for pointure, qté in decompte.items():
+            cout_total_ligne = int(qté) * prix_unit
+            details_chaussures.append({
+                "Marque de Chaussure": col.replace("Chaussures - ", ""),
+                "Pointure": pointure,
+                "Prix unitaire": f"{prix_unit:,} F",
+                "Quantité": int(qté),
+                "Coût Total": f"{cout_total_ligne:,} F",
             })
 
-        st.metric(
-            label="💰 COÛT TOTAL GÉNÉRAL DE TOUS LES ÉQUIPEMENTS À ACHETER",
-            value=f"{grand_total_general:,} FCFA",
-        )
-        st.markdown("<br>", unsafe_allow_html=True)
+      if details_chaussures:
+        df_details_chaussures = pd.DataFrame(details_chaussures)
+        df_details_chaussures = df_details_chaussures.sort_values(
+            by=["Marque de Chaussure", "Pointure"]
+        ).reset_index(drop=True)
+        st.dataframe(df_details_chaussures, use_container_width=True)
+      else:
+        st.info("Aucune demande de chaussures pour le moment.")
 
-        df_recensement = pd.DataFrame(recensement_data)
-        st.dataframe(df_recensement, use_container_width=True)
+      st.divider()
 
-        # ==========================================
-        # SECTION CHAUSSURES : MARQUE + POINTURE + PRIX
-        # ==========================================
-        st.subheader(
-            "👟 Détail des chaussures commandées (Marque, Pointure, Prix &"
-            " Quantité)"
-        )
-        chaussures_cols = {
-            "Chaussures - BEO WORK": 12000,
-            "Chaussures - AMSTRON": 12000,
-            "Chaussures - WALKMANDER": 10000,
-            "Chaussures - Delta plus": 15000,
-        }
-
-        details_chaussures = []
-        for col, prix_unit in chaussures_cols.items():
-          df_marque = df[df[col] == "Je veux"]
-          if not df_marque.empty:
-            decompte = df_marque["Pointure Chaussures"].value_counts()
-            for pointure, qté in decompte.items():
-              cout_total_ligne = int(qté) * prix_unit
-              details_chaussures.append({
-                  "Marque de Chaussure": col.replace("Chaussures - ", ""),
-                  "Pointure": pointure,
-                  "Prix unitaire": f"{prix_unit:,} F",
-                  "Quantité": int(qté),
-                  "Coût Total": f"{cout_total_ligne:,} F",
-              })
-
-        if details_chaussures:
-          df_details_chaussures = pd.DataFrame(details_chaussures)
-          df_details_chaussures = df_details_chaussures.sort_values(
-              by=["Marque de Chaussure", "Pointure"]
-          ).reset_index(drop=True)
-          st.dataframe(df_details_chaussures, use_container_width=True)
-        else:
-          st.info("Aucune demande de chaussures pour le moment.")
-
-        st.divider()
-
-        # ==========================================
-        # SECTION B : CASES À COCHER & MONTANT DÜ PAR ÉTUDIANT
-        # ==========================================
-        st.header(
-            "📋 2. Validation des Paiements & Montant Dû par Étudiant"
-        )
-        st.markdown(
-            "Cochez la case **Payé** pour valider le règlement d'un étudiant."
-            " La ligne passera automatiquement en vert :"
-        )
+      # ==========================================
+      # SECTION B : CASES À COCHER & MONTANT DÜ PAR ÉTUDIANT
+      # ==========================================
+      st.header(
+          "📋 2. Validation des Paiements & Montant Dû par Étudiant"
+      )
+      st.markdown(
+          "Cochez la case **Payé** pour valider le règlement d'un étudiant."
+      )
 
 
-        def calculer_montant_et_resume(row):
-          total = 0
-          manquants = []
-          for article, prix in PRIX_UNITAIRES.items():
-            if row[article] == "Je veux":
-              total += prix
-              if "Chaussures" in article:
-                manquants.append(f"{article} (Pt {row['Pointure Chaussures']})")
-              else:
-                manquants.append(article)
-          resume = ", ".join(manquants) if manquants else "Rien à commander"
-          return pd.Series([f"{total:,} F", resume])
+      def calculer_montant_et_resume(row):
+        total = 0
+        manquants = []
+        for article, prix in PRIX_UNITAIRES.items():
+          if row[article] == "Je veux":
+            total += prix
+            if "Chaussures" in article:
+              manquants.append(f"{article} (Pt {row['Pointure Chaussures']})")
+            else:
+              manquants.append(article)
+        resume = ", ".join(manquants) if manquants else "Rien à commander"
+        return pd.Series([f"{total:,} F", resume])
 
 
-        df[["Montant Dû", "Équipements demandés"]] = df.apply(
-            calculer_montant_et_resume, axis=1
-        )
+      df[["Montant Dû", "Équipements demandés"]] = df.apply(
+          calculer_montant_et_resume, axis=1
+      )
 
-        colonnes_a_afficher = [
-            "Nom",
-            "Prénom",
-            "Promotion",
-            "Téléphone",
-            "Montant Dû",
-            "Payé",
-            "Équipements demandés",
+      colonnes_a_afficher = [
+          "Nom",
+          "Prénom",
+          "Promotion",
+          "Téléphone",
+          "Montant Dû",
+          "Payé",
+          "Équipements demandés",
+      ]
+
+
+      # Fonction pour colorer en vert les lignes payées
+      def colorer_ Lignes(row):
+        return [
+            (
+                "background-color: #d4edda; color: #155724"
+                if row["Payé"]
+                else ""
+            )
+            for _ in row
         ]
 
-        # Utilisation de st.data_editor avec des cases à cocher interactives
-        df_edit = st.data_editor(
-            df[colonnes_a_afficher],
-            use_container_width=True,
-            num_rows="fixed",
-            key="editeur_paiement_checkbox",
+
+      df_edit = st.data_editor(
+          df[colonnes_a_afficher],
+          use_container_width=True,
+          num_rows="fixed",
+          key="editeur_paiement_checkbox",
+      )
+
+      if not df_edit.equals(df[colonnes_a_afficher]):
+        df["Payé"] = df_edit["Payé"]
+        sauvegarder_donnees(df)
+        st.success("✅ Statut de paiement mis à jour avec succès !")
+        st.rerun()
+
+      st.markdown("<br>", unsafe_allow_html=True)
+
+      # ==========================================
+      # SECTION C : SUPPRESSION CIBLÉE D'UN ÉTUDIANT
+      # ==========================================
+      with st.expander("🗑️ Supprimer un étudiant en particulier"):
+        st.markdown(
+            "Sélectionnez un étudiant dans la liste pour supprimer"
+            " définitivement sa fiche :"
+        )
+        liste_etudiants = (
+            df["Nom"]
+            + " "
+            + df["Prénom"]
+            + " (Tél: "
+            + df["Téléphone"]
+            + ")"
+        ).tolist()
+
+        etudiant_a_supprimer = st.selectbox(
+            "Choisissez l'étudiant à supprimer :", options=liste_etudiants
         )
 
-        if not df_edit.equals(df[colonnes_a_afficher]):
-          df["Payé"] = df_edit["Payé"]
+        if st.button(
+            "❌ Confirmer la suppression de cet étudiant", type="secondary"
+        ):
+          index_selectionne = liste_etudiants.index(etudiant_a_supprimer)
+          df = df.drop(index_selectionne).reset_index(drop=True)
           sauvegarder_donnees(df)
-          st.success("✅ Statut de paiement mis à jour avec succès !")
+          st.success(
+              f"✅ L'étudiant {etudiant_a_supprimer} a été supprimé avec"
+              " succès."
+          )
           st.rerun()
 
-        st.markdown("<br>", unsafe_allow_html=True)
+      st.markdown("<br>", unsafe_allow_html=True)
 
-        # ==========================================
-        # SECTION C : SUPPRESSION CIBLÉE D'UN ÉTUDIANT
-        # ==========================================
-        with st.expander("🗑️ Supprimer un étudiant en particulier"):
-          st.markdown(
-              "Sélectionnez un étudiant dans la liste pour supprimer"
-              " définitivement sa fiche :"
-          )
-          liste_etudiants = (
-              df["Nom"]
-              + " "
-              + df["Prénom"]
-              + " (Tél: "
-              + df["Téléphone"]
-              + ")"
-          ).tolist()
+      csv = df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+      st.download_button(
+          label="📥 Télécharger la base de données complète (CSV)",
+          data=csv,
+          file_name=f"recensement_epi_officiel_{datetime.now().strftime('%Y-%m-%d')}.csv",
+          mime="text/csv",
+      )
 
-          etudiant_a_supprimer = st.selectbox(
-              "Choisissez l'étudiant à supprimer :", options=liste_etudiants
-          )
-
-          if st.button(
-              "❌ Confirmer la suppression de cet étudiant", type="secondary"
-          ):
-            index_selectionne = liste_etudiants.index(etudiant_a_supprimer)
-            df = df.drop(index_selectionne).reset_index(drop=True)
-            sauvegarder_donnees(df)
-            st.success(
-                f"✅ L'étudiant {etudiant_a_supprimer} a été supprimé avec"
-                " succès."
-            )
+      with st.expander("⚙️ Zone dangereuse"):
+        if st.button("🗑️ Effacer toutes les données"):
+          if os.path.exists(DB_FILE):
+            os.remove(DB_FILE)
             st.rerun()
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        csv = df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
-        st.download_button(
-            label="📥 Télécharger la base de données complète (CSV)",
-            data=csv,
-            file_name=f"recensement_epi_officiel_{datetime.now().strftime('%Y-%m-%d')}.csv",
-            mime="text/csv",
-        )
-
-        with st.expander("⚙️ Zone dangereuse"):
-          if st.button("🗑️ Effacer toutes les données"):
-            if os.path.exists(DB_FILE):
-              os.remove(DB_FILE)
-              st.rerun()
