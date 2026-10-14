@@ -32,7 +32,11 @@ PRIX_UNITAIRES = {
 # Fonction pour charger les données
 def charger_donnees():
   if os.path.exists(DB_FILE):
-    return pd.read_csv(DB_FILE, dtype=str)
+    df = pd.read_csv(DB_FILE, dtype=str)
+    # Assurer la présence de la colonne Statut Paiement pour les anciennes données
+    if "Statut Paiement" not in df.columns:
+      df["Statut Paiement"] = "Impayé"
+    return df
   else:
     colonnes = [
         "Date",
@@ -42,6 +46,7 @@ def charger_donnees():
         "Promotion",
         "Résidence",
         "Pointure Chaussures",
+        "Statut Paiement",
     ] + list(PRIX_UNITAIRES.keys())
     return pd.DataFrame(columns=colonnes)
 
@@ -233,6 +238,7 @@ if menu == "Espace Étudiant (L1 / BP)":
               "Promotion": promotion,
               "Résidence": residence,
               "Pointure Chaussures": pointure,
+              "Statut Paiement": "Impayé",  # Automatiquement défini comme impayé
           }
 
           for article, choix in choix_articles.items():
@@ -298,8 +304,9 @@ elif menu == "Espace Administrateur":
           f" **{len(df)}**"
       )
 
-      # Tri automatique par ordre alphabétique
+      # Tri automatique par ordre alphabétique et réinitialisation propre des numéros de lignes
       df = df.sort_values(by=["Nom", "Prénom"], ascending=[True, True])
+      df = df.reset_index(drop=True)
 
       # ==========================================
       # SECTION A : RECENSEMENT GLOBAL ET BUDGET TOTAL
@@ -328,52 +335,68 @@ elif menu == "Espace Administrateur":
       )
       st.markdown("<br>", unsafe_allow_html=True)
 
-      # Tableau détaillé par équipement
       df_recensement = pd.DataFrame(recensement_data)
       st.dataframe(df_recensement, use_container_width=True)
 
-      # Détail des pointures de chaussures demandées
-      st.subheader("👟 Répartition des pointures de chaussures demandées")
+      # ==========================================
+      # SECTION CHAUSSURES : MARQUE + POINTURE ASSOCIÉE
+      # ==========================================
+      st.subheader(
+          "👟 Détail des chaussures commandées (Marque, Pointure & Quantité)"
+      )
       chaussures_cols = [
           "Chaussures - BEO WORK",
           "Chaussures - AMSTRON",
           "Chaussures - WALKMANDER",
           "Chaussures - Delta plus",
       ]
-      df_chaussures_voulues = df[
-          (df[chaussures_cols] == "Je veux").any(axis=1)
-      ]
-      if not df_chaussures_voulues.empty:
-        decompte_pointures = (
-            df_chaussures_voulues["Pointure Chaussures"]
-            .value_counts()
-            .reset_index()
-        )
-        decompte_pointures.columns = ["Pointure", "Quantité"]
-        st.table(decompte_pointures)
+
+      details_chaussures = []
+      for col in chaussures_cols:
+        # Filtrer les étudiants qui veulent cette marque spécifique
+        df_marque = df[df[col] == "Je veux"]
+        if not df_marque.empty:
+          # Grouper par pointure pour voir combien de chaque pointure sont demandées pour cette marque
+          decompte = df_marque["Pointure Chaussures"].value_counts()
+          for pointure, qté in decompte.items():
+            details_chaussures.append({
+                "Marque de Chaussure": col.replace("Chaussures - ", ""),
+                "Pointure": pointure,
+                "Quantité": int(qté),
+            })
+
+      if details_chaussures:
+        df_details_chaussures = pd.DataFrame(details_chaussures)
+        # Tri par marque puis pointure
+        df_details_chaussures = df_details_chaussures.sort_values(
+            by=["Marque de Chaussure", "Pointure"]
+        ).reset_index(drop=True)
+        st.dataframe(df_details_chaussures, use_container_width=True)
       else:
         st.info("Aucune demande de chaussures pour le moment.")
 
       st.divider()
 
       # ==========================================
-      # SECTION B : DÉTAIL PAR ÉTUDIANT
+      # SECTION B : GESTION DES STATUTS DE PAIEMENT & DÉTAIL NOMINATIF
       # ==========================================
       st.header(
-          "📋 2. Détail nominatif (Trié par ordre alphabétique)"
+          "📋 2. Validation des Paiements & Détail Nominatif (Ordre"
+          " alphabétique)"
       )
       st.markdown(
-          "Consultez les choix individuels, la promotion et les coordonnées de"
-          " chaque étudiant :"
+          "Vous pouvez modifier manuellement le statut de paiement d'un"
+          " étudiant ci-dessous :"
       )
 
 
+      # Fonction pour construire le résumé des besoins par étudiant
       def construire_resume_besoins(row):
         manquants = []
         for article in PRIX_UNITAIRES.keys():
           if row[article] == "Je veux":
             if "Chaussures" in article:
-              manquants.append(f"{article} (Pointure {row['Pointure Chaussures']})")
+              manquants.append(f"{article} (Pt {row['Pointure Chaussures']})")
             else:
               manquants.append(article)
         if not manquants:
@@ -381,14 +404,39 @@ elif menu == "Espace Administrateur":
         return ", ".join(manquants)
 
 
-      df_affichage = df[
-          ["Nom", "Prénom", "Téléphone", "Promotion", "Résidence", "Date"]
-      ].copy()
-      df_affichage["Équipements demandés"] = df.apply(
+      df["Équipements demandés"] = df.apply(
           construire_resume_besoins, axis=1
       )
 
-      st.dataframe(df_affichage, use_container_width=True)
+      # Tableau interactif pour permettre à l'admin de modifier le statut de paiement
+      colonnes_a_afficher = [
+          "Nom",
+          "Prénom",
+          "Promotion",
+          "Téléphone",
+          "Statut Paiement",
+          "Équipements demandés",
+      ]
+
+      # Utilisation de st.data_editor pour permettre à l'admin de basculer Impayé -> Payé en un clic
+      df_edit = st.data_editor(
+          df[colonnes_a_afficher],
+          use_container_width=True,
+          num_rows="fixed",
+          key="editeur_paiement",
+      )
+
+      # Si l'administrateur modifie le statut dans le tableau, on met à jour la base de données
+      if not df_edit.equals(df[colonnes_a_afficher]):
+        df["Statut Paiement"] = df_edit["Statut Paiement"]
+        sauvegarder_donnees(df)
+        st.success(
+            "✅ Statut de paiement mis à jour avec succès dans la base de"
+            " données !"
+        )
+        st.rerun()
+
+      st.markdown("<br>", unsafe_allow_html=True)
 
       # Option de téléchargement
       csv = df.to_csv(index=False).encode("utf-8")
