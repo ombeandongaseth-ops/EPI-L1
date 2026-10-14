@@ -32,6 +32,7 @@ PRIX_UNITAIRES = {
 ADMIN_EMAILS = [
     "ninon.ombeandonga@2030.ucac-icam.com",
     "gedidia.mabahou@2030.ucac-icam.com",
+    "chekwas.thomas@2030.ucac-icam.com",
 ]
 
 
