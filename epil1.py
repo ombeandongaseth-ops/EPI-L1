@@ -33,7 +33,6 @@ PRIX_UNITAIRES = {
 def charger_donnees():
   if os.path.exists(DB_FILE):
     df = pd.read_csv(DB_FILE, dtype=str)
-    # Assurer la présence de la colonne Statut Paiement pour les anciennes données
     if "Statut Paiement" not in df.columns:
       df["Statut Paiement"] = "Impayé"
     return df
@@ -206,7 +205,6 @@ if menu == "Espace Étudiant (L1 / BP)":
       else:
         df = charger_donnees()
 
-        # Vérification anti-doublon
         doublon = False
         if not df.empty:
           doublon = (
@@ -221,7 +219,6 @@ if menu == "Espace Étudiant (L1 / BP)":
               " ces informations !"
           )
         else:
-          # Calcul du montant total à payer pour cet étudiant
           montant_total = 0
           articles_demandes = []
           for article, choix in choix_articles.items():
@@ -238,7 +235,7 @@ if menu == "Espace Étudiant (L1 / BP)":
               "Promotion": promotion,
               "Résidence": residence,
               "Pointure Chaussures": pointure,
-              "Statut Paiement": "Impayé",  # Automatiquement défini comme impayé
+              "Statut Paiement": "Impayé",
           }
 
           for article, choix in choix_articles.items():
@@ -254,7 +251,6 @@ if menu == "Espace Étudiant (L1 / BP)":
               " l'administration."
           )
 
-          # --- AFFICHAGE DE LA FACTURE ET CONTACT DU BDE ---
           st.markdown("---")
           st.subheader("💳 Récapitulatif de votre commande et Paiement")
           if montant_total > 0:
@@ -286,9 +282,16 @@ elif menu == "Espace Administrateur":
   st.title("🔐 Espace Administrateur - Gestion & Recensement")
 
   mot_de_passe = st.sidebar.text_input("Mot de passe admin", type="password")
-  ADMIN_PASSWORD = "icam"  # Mot de passe par défaut
+  ADMIN_PASSWORD = "icam"
 
-  if mot_de_passe != ADMIN_PASSWORD:
+  # Utilisation de st.session_state pour mémoriser la connexion admin et éviter les déconnexions intempestives
+  if "admin_connecte" not in st.session_state:
+    st.session_state.admin_connecte = False
+
+  if mot_de_passe == ADMIN_PASSWORD:
+    st.session_state.admin_connecte = True
+
+  if not st.session_state.admin_connecte:
     st.warning(
         "⚠️ Entrez le mot de passe administrateur pour consulter les demandes."
     )
@@ -328,7 +331,6 @@ elif menu == "Espace Administrateur":
               "Coût Total": f"{total_fcfa:,} F",
           })
 
-      # Affichage en grand du Montant Total Général de la commande
       st.metric(
           label="💰 COÛT TOTAL GÉNÉRAL DE TOUS LES ÉQUIPEMENTS À ACHETER",
           value=f"{grand_total_general:,} FCFA",
@@ -339,35 +341,36 @@ elif menu == "Espace Administrateur":
       st.dataframe(df_recensement, use_container_width=True)
 
       # ==========================================
-      # SECTION CHAUSSURES : MARQUE + POINTURE ASSOCIÉE
+      # SECTION CHAUSSURES : MARQUE + POINTURE + PRIX
       # ==========================================
       st.subheader(
-          "👟 Détail des chaussures commandées (Marque, Pointure & Quantité)"
+          "👟 Détail des chaussures commandées (Marque, Pointure, Prix &"
+          " Quantité)"
       )
-      chaussures_cols = [
-          "Chaussures - BEO WORK",
-          "Chaussures - AMSTRON",
-          "Chaussures - WALKMANDER",
-          "Chaussures - Delta plus",
-      ]
+      chaussures_cols = {
+          "Chaussures - BEO WORK": 12000,
+          "Chaussures - AMSTRON": 12000,
+          "Chaussures - WALKMANDER": 10000,
+          "Chaussures - Delta plus": 15000,
+      }
 
       details_chaussures = []
-      for col in chaussures_cols:
-        # Filtrer les étudiants qui veulent cette marque spécifique
+      for col, prix_unit in chaussures_cols.items():
         df_marque = df[df[col] == "Je veux"]
         if not df_marque.empty:
-          # Grouper par pointure pour voir combien de chaque pointure sont demandées pour cette marque
           decompte = df_marque["Pointure Chaussures"].value_counts()
           for pointure, qté in decompte.items():
+            cout_total_ligne = int(qté) * prix_unit
             details_chaussures.append({
                 "Marque de Chaussure": col.replace("Chaussures - ", ""),
                 "Pointure": pointure,
+                "Prix unitaire": f"{prix_unit:,} F",
                 "Quantité": int(qté),
+                "Coût Total": f"{cout_total_ligne:,} F",
             })
 
       if details_chaussures:
         df_details_chaussures = pd.DataFrame(details_chaussures)
-        # Tri par marque puis pointure
         df_details_chaussures = df_details_chaussures.sort_values(
             by=["Marque de Chaussure", "Pointure"]
         ).reset_index(drop=True)
@@ -390,7 +393,6 @@ elif menu == "Espace Administrateur":
       )
 
 
-      # Fonction pour construire le résumé des besoins par étudiant
       def construire_resume_besoins(row):
         manquants = []
         for article in PRIX_UNITAIRES.keys():
@@ -408,7 +410,6 @@ elif menu == "Espace Administrateur":
           construire_resume_besoins, axis=1
       )
 
-      # Tableau interactif pour permettre à l'admin de modifier le statut de paiement
       colonnes_a_afficher = [
           "Nom",
           "Prénom",
@@ -418,7 +419,6 @@ elif menu == "Espace Administrateur":
           "Équipements demandés",
       ]
 
-      # Utilisation de st.data_editor pour permettre à l'admin de basculer Impayé -> Payé en un clic
       df_edit = st.data_editor(
           df[colonnes_a_afficher],
           use_container_width=True,
@@ -426,7 +426,6 @@ elif menu == "Espace Administrateur":
           key="editeur_paiement",
       )
 
-      # Si l'administrateur modifie le statut dans le tableau, on met à jour la base de données
       if not df_edit.equals(df[colonnes_a_afficher]):
         df["Statut Paiement"] = df_edit["Statut Paiement"]
         sauvegarder_donnees(df)
@@ -438,7 +437,6 @@ elif menu == "Espace Administrateur":
 
       st.markdown("<br>", unsafe_allow_html=True)
 
-      # Option de téléchargement
       csv = df.to_csv(index=False).encode("utf-8")
       st.download_button(
           label="📥 Télécharger la base de données complète (CSV)",
@@ -447,7 +445,6 @@ elif menu == "Espace Administrateur":
           mime="text/csv",
       )
 
-      # Option de nettoyage
       with st.expander("⚙️ Zone dangereuse"):
         if st.button("🗑️ Effacer toutes les données"):
           if os.path.exists(DB_FILE):
