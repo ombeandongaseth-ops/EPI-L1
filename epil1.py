@@ -39,13 +39,19 @@ ADMIN_EMAILS = [
 def charger_donnees():
   if os.path.exists(DB_FILE):
     df = pd.read_csv(DB_FILE, dtype=str, encoding="utf-8-sig")
-    if "Payé" not in df.columns:
-      if "Statut Paiement" in df.columns:
-        df["Payé"] = df["Statut Paiement"].apply(
-            lambda x: True if str(x).lower() in ["payé", "true", "1"] else False
-        )
-      else:
-        df["Payé"] = False
+
+    # Conversion stricte : Seule la valeur 'payé' ou 'true' coche la case
+    if "Payé" in df.columns:
+      df["Payé"] = df["Payé"].apply(
+          lambda x: True if str(x).strip().lower() in ["payé", "true"] else False
+      )
+    elif "Statut Paiement" in df.columns:
+      df["Payé"] = df["Statut Paiement"].apply(
+          lambda x: True if str(x).strip().lower() == "payé" else False
+      )
+    else:
+      df["Payé"] = False
+
     df["Payé"] = df["Payé"].astype(bool)
     return df
   else:
@@ -248,7 +254,7 @@ if menu == "Espace Étudiant (L1 / BP)":
           "Promotion": promotion,
           "Résidence": residence,
           "Pointure Chaussures": pointure,
-          "Payé": False,
+          "Payé": False,  # Case décochée par défaut
       }
 
       for article, choix in choix_articles.items():
@@ -495,38 +501,16 @@ elif menu == "Espace Administrateur":
           "Équipements demandés",
       ]
 
-
-      # Fonction de coloration en vert corrigée
-      def colorer_lignes(row):
-        return [
-            (
-                "background-color: #d4edda; color: #155724"
-                if row["Payé"]
-                else ""
-            )
-            for _ in row
-        ]
-
-
+      # Tableau unique et interactif avec cases à cocher
       df_edit = st.data_editor(
-          df[colonnes_a_afficher].style.apply(colorer_lignes, axis=1),
-          use_container_width=True,
-          num_rows="fixed",
-          key="editeur_paiement_checkbox",
-      )
-
-      # Récupération des modifications sur la colonne Payé
-      # (Note : st.data_editor avec style retourne un Styler, on récupère les données modifiées via df_edit.data si besoin ou directement)
-      # Pour simplifier avec st.data_editor sans perdre les types booléens :
-      df_edit_data = st.data_editor(
           df[colonnes_a_afficher],
           use_container_width=True,
           num_rows="fixed",
-          key="editeur_paiement_direct",
+          key="editeur_paiement_unique",
       )
 
-      if not df_edit_data.equals(df[colonnes_a_afficher]):
-        df["Payé"] = df_edit_data["Payé"]
+      if not df_edit.equals(df[colonnes_a_afficher]):
+        df["Payé"] = df_edit["Payé"]
         sauvegarder_donnees(df)
         st.success("✅ Statut de paiement mis à jour avec succès !")
         st.rerun()
