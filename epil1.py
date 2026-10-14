@@ -336,7 +336,7 @@ elif menu == "Annuler ma commande":
             )
 
 # ==========================================
-# 3. ESPACE ADMINISTRATEUR (Sécurisé par Email et mot de passe)
+# 3. ESPACE ADMINISTRATEUR
 # ==========================================
 elif menu == "Espace Administrateur":
   st.title("🔐 Espace Administrateur - Gestion & Recensement")
@@ -496,8 +496,8 @@ elif menu == "Espace Administrateur":
       ]
 
 
-      # Fonction pour colorer en vert les lignes payées
-      def colorer_ Lignes(row):
+      # Fonction de coloration en vert corrigée
+      def colorer_lignes(row):
         return [
             (
                 "background-color: #d4edda; color: #155724"
@@ -509,14 +509,24 @@ elif menu == "Espace Administrateur":
 
 
       df_edit = st.data_editor(
-          df[colonnes_a_afficher],
+          df[colonnes_a_afficher].style.apply(colorer_lignes, axis=1),
           use_container_width=True,
           num_rows="fixed",
           key="editeur_paiement_checkbox",
       )
 
-      if not df_edit.equals(df[colonnes_a_afficher]):
-        df["Payé"] = df_edit["Payé"]
+      # Récupération des modifications sur la colonne Payé
+      # (Note : st.data_editor avec style retourne un Styler, on récupère les données modifiées via df_edit.data si besoin ou directement)
+      # Pour simplifier avec st.data_editor sans perdre les types booléens :
+      df_edit_data = st.data_editor(
+          df[colonnes_a_afficher],
+          use_container_width=True,
+          num_rows="fixed",
+          key="editeur_paiement_direct",
+      )
+
+      if not df_edit_data.equals(df[colonnes_a_afficher]):
+        df["Payé"] = df_edit_data["Payé"]
         sauvegarder_donnees(df)
         st.success("✅ Statut de paiement mis à jour avec succès !")
         st.rerun()
