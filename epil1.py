@@ -29,7 +29,7 @@ PRIX_UNITAIRES = {
 }
 
 
-# Fonction pour charger les données (avec utf-8-sig pour les accents sous Excel)
+# Fonction pour charger les données
 def charger_donnees():
   if os.path.exists(DB_FILE):
     df = pd.read_csv(DB_FILE, dtype=str, encoding="utf-8-sig")
@@ -174,7 +174,7 @@ if menu == "Espace Étudiant (L1 / BP)":
     pointure = st.selectbox(
         "👟 Précisez votre pointure de chaussures (30 à 47) :",
         options=[str(p) for p in range(30, 48)],
-        index=11,  # Par défaut 41
+        index=11,
     )
 
     st.markdown("### 🔌 Multimètre & Blouse")
@@ -386,8 +386,8 @@ elif menu == "Espace Administrateur":
           " alphabétique)"
       )
       st.markdown(
-          "Vous pouvez modifier manuellement le statut de paiement d'un"
-          " étudiant ci-dessous :"
+          "Modifiez directement le statut de paiement dans le tableau ci-dessous"
+          " :"
       )
 
 
@@ -427,11 +427,48 @@ elif menu == "Espace Administrateur":
       if not df_edit.equals(df[colonnes_a_afficher]):
         df["Statut Paiement"] = df_edit["Statut Paiement"]
         sauvegarder_donnees(df)
-        st.success(
-            "✅ Statut de paiement mis à jour avec succès dans la base de"
-            " données !"
-        )
+        st.success("✅ Statut de paiement mis à jour avec succès !")
         st.rerun()
+
+      st.markdown("<br>", unsafe_allow_html=True)
+
+      # ==========================================
+      # SECTION C : SUPPRESSION D'UN ÉTUDIANT SPÉCIFIQUE
+      # ==========================================
+      with st.expander("🗑️ Supprimer un étudiant en particulier"):
+        st.markdown(
+            "Sélectionnez un étudiant dans la liste pour supprimer"
+            " définitivement sa fiche et ses demandes :"
+        )
+
+        # Création d'une liste unique identifiant chaque étudiant (Nom Prénom - Téléphone)
+        liste_etudiants = (
+            df["Nom"]
+            + " "
+            + df["Prénom"]
+            + " (Tél: "
+            + df["Téléphone"]
+            + ")"
+        ).tolist()
+
+        etudiant_a_supprimer = st.selectbox(
+            "Choisissez l'étudiant à supprimer :", options=liste_etudiants
+        )
+
+        if st.button(
+            "❌ Confirmer la suppression de cet étudiant", type="secondary"
+        ):
+          # Retrouver l'index de l'étudiant sélectionné
+          index_selectionne = liste_etudiants.index(etudiant_a_supprimer)
+          # Supprimer la ligne du DataFrame
+          df = df.drop(index_selectionne).reset_index(drop=True)
+          # Sauvegarder la nouvelle base de données
+          sauvegarder_donnees(df)
+          st.success(
+              f"✅ L'étudiant {etudiant_a_supprimer} a été supprimé avec"
+              " succès."
+          )
+          st.rerun()
 
       st.markdown("<br>", unsafe_allow_html=True)
 
