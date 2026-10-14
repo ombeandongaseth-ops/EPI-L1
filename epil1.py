@@ -32,7 +32,8 @@ PRIX_UNITAIRES = {
 # Fonction pour charger les données
 def charger_donnees():
   if os.path.exists(DB_FILE):
-    df = pd.read_csv(DB_FILE, dtype=str)
+    # Lecture avec utf-8-sig pour bien gérer les accents
+    df = pd.read_csv(DB_FILE, dtype=str, encoding="utf-8-sig")
     if "Statut Paiement" not in df.columns:
       df["Statut Paiement"] = "Impayé"
     return df
@@ -50,9 +51,9 @@ def charger_donnees():
     return pd.DataFrame(columns=colonnes)
 
 
-# Fonction pour sauvegarder les données
+# Fonction pour sauvegarder les données (corrigée avec utf-8-sig pour Excel)
 def sauvegarder_donnees(df):
-  df.to_csv(DB_FILE, index=False)
+  df.to_csv(DB_FILE, index=False, encoding="utf-8-sig")
 
 
 # --- MENU DE NAVIGATION ---
@@ -284,7 +285,6 @@ elif menu == "Espace Administrateur":
   mot_de_passe = st.sidebar.text_input("Mot de passe admin", type="password")
   ADMIN_PASSWORD = "icam"
 
-  # Utilisation de st.session_state pour mémoriser la connexion admin et éviter les déconnexions intempestives
   if "admin_connecte" not in st.session_state:
     st.session_state.admin_connecte = False
 
@@ -307,7 +307,6 @@ elif menu == "Espace Administrateur":
           f" **{len(df)}**"
       )
 
-      # Tri automatique par ordre alphabétique et réinitialisation propre des numéros de lignes
       df = df.sort_values(by=["Nom", "Prénom"], ascending=[True, True])
       df = df.reset_index(drop=True)
 
@@ -437,7 +436,7 @@ elif menu == "Espace Administrateur":
 
       st.markdown("<br>", unsafe_allow_html=True)
 
-      csv = df.to_csv(index=False).encode("utf-8")
+      csv = df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
       st.download_button(
           label="📥 Télécharger la base de données complète (CSV)",
           data=csv,
