@@ -29,10 +29,9 @@ PRIX_UNITAIRES = {
 }
 
 
-# Fonction pour charger les données
+# Fonction pour charger les données (avec utf-8-sig pour les accents sous Excel)
 def charger_donnees():
   if os.path.exists(DB_FILE):
-    # Lecture avec utf-8-sig pour bien gérer les accents
     df = pd.read_csv(DB_FILE, dtype=str, encoding="utf-8-sig")
     if "Statut Paiement" not in df.columns:
       df["Statut Paiement"] = "Impayé"
@@ -51,7 +50,7 @@ def charger_donnees():
     return pd.DataFrame(columns=colonnes)
 
 
-# Fonction pour sauvegarder les données (corrigée avec utf-8-sig pour Excel)
+# Fonction pour sauvegarder les données
 def sauvegarder_donnees(df):
   df.to_csv(DB_FILE, index=False, encoding="utf-8-sig")
 
