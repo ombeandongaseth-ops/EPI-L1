@@ -1,5 +1,5 @@
+from datetime import datetime, timedelta
 import os
-from datetime import datetime
 import pandas as pd
 import streamlit as st
 
@@ -35,12 +35,29 @@ ADMIN_EMAILS = [
 ]
 
 
+# GESTION DES SESSIONS EN DIRECT (LIVE ATTENDANCE)
+if "live_admins" not in st.session_state:
+  st.session_state.live_admins = {}
+
+
+def nettoyer_et_mettre_a_jour_presence(email):
+  now = datetime.now()
+  # Mettre à jour l'heure de dernière activité de l'admin actuel
+  st.session_state.live_admins[email] = now
+
+  # Supprimer les admins inactifs depuis plus de 5 minutes
+  admins_actifs = {}
+  for adm, last_seen in st.session_state.live_admins.items():
+    if now - last_seen < timedelta(minutes=5):
+      admins_actifs[adm] = last_seen
+  st.session_state.live_admins = admins_actifs
+
+
 # Fonction pour charger les données
 def charger_donnees():
   if os.path.exists(DB_FILE):
     df = pd.read_csv(DB_FILE, dtype=str, encoding="utf-8-sig")
 
-    # Conversion stricte : Seule la valeur 'payé' ou 'true' coche la case
     if "Payé" in df.columns:
       df["Payé"] = df["Payé"].apply(
           lambda x: True if str(x).strip().lower() in ["payé", "true"] else False
@@ -236,7 +253,6 @@ if menu == "Espace Étudiant (L1 / BP)":
           montant_total += PRIX_UNITAIRES[article]
           articles_demandes.append(article)
 
-      # Gestion des doublons : mise à jour si l'étudiant existe déjà
       if not df.empty:
         existant = (df["Nom"] == nom) & (df["Prénom"] == prenom)
         if existant.any():
@@ -254,7 +270,7 @@ if menu == "Espace Étudiant (L1 / BP)":
           "Promotion": promotion,
           "Résidence": residence,
           "Pointure Chaussures": pointure,
-          "Payé": False,  # Case décochée par défaut
+          "Payé": False,
       }
 
       for article, choix in choix_articles.items():
@@ -342,7 +358,7 @@ elif menu == "Annuler ma commande":
             )
 
 # ==========================================
-# 3. ESPACE ADMINISTRATEUR
+# 3. ESPACE ADMINISTRATEUR (Avec suivi Direct)
 # ==========================================
 elif menu == "Espace Administrateur":
   st.title("🔐 Espace Administrateur - Gestion & Recensement")
@@ -372,13 +388,35 @@ elif menu == "Espace Administrateur":
             " passe."
         )
   else:
-    st.success(
-        f"🔓 Connecté en tant qu'administrateur :"
-        f" {st.session_state.current_admin_email}"
-    )
-    if st.button("Se déconnecter"):
-      st.session_state.admin_connecte = False
-      st.rerun()
+    # Mettre à jour la présence en direct
+    nettoyer_et_mettre_a_jour_presence(st.session_state.current_admin_email)
+
+    col_status1, col_status2 = st.columns([3, 1])
+    with col_status1:
+      st.success(
+          f"🔓 Connecté en tant qu'administrateur :"
+          f" **{st.session_state.current_admin_email}**"
+      )
+    with col_status2:
+      if st.button("Se déconnecter"):
+        if (
+            st.session_state.current_admin_email
+            in st.session_state.live_admins
+        ):
+          del st.session_state.live_admins[
+              st.session_state.current_admin_email
+          ]
+        st.session_state.admin_connecte = False
+        st.rerun()
+
+    # --- SECTION SESSIONS EN DIRECT ---
+    with st.expander("🟢 Administrateurs actuellement connectés en direct"):
+      st.write("Voici la liste des administrateurs actifs sur le dashboard :")
+      for adm_email, last_seen in st.session_state.live_admins.items():
+        st.markdown(
+            f"- 🟢 **{adm_email}** *(Dernière activité :"
+            f" {last_seen.strftime('%H:%M:%S')})*"
+        )
 
     df = charger_donnees()
 
@@ -501,7 +539,6 @@ elif menu == "Espace Administrateur":
           "Équipements demandés",
       ]
 
-      # Tableau unique et interactif avec cases à cocher
       df_edit = st.data_editor(
           df[colonnes_a_afficher],
           use_container_width=True,
