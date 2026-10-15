@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
-import gspread
-from google.oauth2.service_account import Credentials
+import os
 import pandas as pd
 import streamlit as st
 
@@ -9,8 +8,8 @@ st.set_page_config(
     page_title="Gestion des EPI - UCAC-ICAM", page_icon="🦺", layout="wide"
 )
 
-# Nom du Google Sheet distant
-GSHEET_NAME = "demandes_epi_officiel"
+# Fichier de stockage des données
+DB_FILE = "demandes_epi_officiel.csv"
 
 # Dictionnaire des prix unitaires officiels
 PRIX_UNITAIRES = {
@@ -38,77 +37,6 @@ ADMIN_EMAILS = [
 ]
 
 
-# CONNEXION GOOGLE SHEETS
-def get_google_sheet_client():
-  scope = [
-      "https://www.googleapis.com/auth/spreadsheets",
-      "https://www.googleapis.com/auth/drive",
-  ]
-  creds_dict = dict(st.secrets["gcp_service_account"])
-  creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-  client = gspread.authorize(creds)
-  return client
-
-
-# Fonction pour charger les données depuis Google Sheets
-def charger_donnees():
-  colonnes_defaut = [
-      "Date",
-      "Nom",
-      "Prénom",
-      "Téléphone",
-      "Promotion",
-      "Résidence",
-      "Pointure Chaussures",
-      "Payé",
-  ] + list(PRIX_UNITAIRES.keys())
-  try:
-    client = get_google_sheet_client()
-    sheet = client.open(GSHEET_NAME).sheet1
-    data = sheet.get_all_records()
-    if not data:
-      return pd.DataFrame(columns=colonnes_defaut)
-
-    df = pd.DataFrame(data)
-    # Assurer que toutes les colonnes existent
-    for col in colonnes_defaut:
-      if col not in df.columns:
-        df[col] = "Aucun"
-
-    if "Payé" in df.columns:
-      df["Payé"] = df["Payé"].apply(
-          lambda x: True if str(x).strip().lower() in ["payé", "true", "1"]
-          else False
-      )
-    else:
-      df["Payé"] = False
-
-    df["Payé"] = df["Payé"].astype(bool)
-    return df
-  except Exception as e:
-    st.error(
-        "Erreur de connexion à Google Sheets. Vérifiez vos secrets"
-        f" Streamlit. Détail : {e}"
-    )
-    return pd.DataFrame(columns=colonnes_defaut)
-
-
-# Fonction pour sauvegarder les données sur Google Sheets
-def sauvegarder_donnees(df):
-  try:
-    client = get_google_sheet_client()
-    sheet = client.open(GSHEET_NAME).sheet1
-    df_to_save = df.copy()
-    if "Payé" in df_to_save.columns:
-      df_to_save["Payé"] = df_to_save["Payé"].astype(str)
-    sheet.clear()
-    sheet.update(
-        [df_to_save.columns.values.tolist()] + df_to_save.values.tolist()
-    )
-  except Exception as e:
-    st.error(f"Erreur lors de la sauvegarde sur Google Sheets : {e}")
-
-
 # GESTION DES SESSIONS EN DIRECT (LIVE ATTENDANCE)
 if "live_admins" not in st.session_state:
   st.session_state.live_admins = {}
@@ -122,6 +50,43 @@ def nettoyer_et_mettre_a_jour_presence(email):
     if now - last_seen < timedelta(minutes=5):
       admins_actifs[adm] = last_seen
   st.session_state.live_admins = admins_actifs
+
+
+# Fonction pour charger les données
+def charger_donnees():
+  if os.path.exists(DB_FILE):
+    df = pd.read_csv(DB_FILE, dtype=str, encoding="utf-8-sig")
+
+    if "Payé" in df.columns:
+      df["Payé"] = df["Payé"].apply(
+          lambda x: True if str(x).strip().lower() in ["payé", "true"] else False
+      )
+    elif "Statut Paiement" in df.columns:
+      df["Payé"] = df["Statut Paiement"].apply(
+          lambda x: True if str(x).strip().lower() == "payé" else False
+      )
+    else:
+      df["Payé"] = False
+
+    df["Payé"] = df["Payé"].astype(bool)
+    return df
+  else:
+    colonnes = [
+        "Date",
+        "Nom",
+        "Prénom",
+        "Téléphone",
+        "Promotion",
+        "Résidence",
+        "Pointure Chaussures",
+        "Payé",
+    ] + list(PRIX_UNITAIRES.keys())
+    return pd.DataFrame(columns=colonnes)
+
+
+# Fonction pour sauvegarder les données
+def sauvegarder_donnees(df):
+  df.to_csv(DB_FILE, index=False, encoding="utf-8-sig")
 
 
 # --- MENU DE NAVIGATION ---
@@ -287,7 +252,7 @@ if menu == "Espace Étudiant (L1 / BP)":
           montant_total += PRIX_UNITAIRES[article]
           articles_demandes.append(article)
 
-      if not df.empty and "Nom" in df.columns and "Prénom" in df.columns:
+      if not df.empty:
         existant = (df["Nom"] == nom) & (df["Prénom"] == prenom)
         if existant.any():
           df = df[~existant]
@@ -422,6 +387,7 @@ elif menu == "Espace Administrateur":
             " passe."
         )
   else:
+    # Mettre à jour la présence en direct
     nettoyer_et_mettre_a_jour_presence(st.session_state.current_admin_email)
 
     col_status1, col_status2 = st.columns([3, 1])
@@ -442,6 +408,7 @@ elif menu == "Espace Administrateur":
         st.session_state.admin_connecte = False
         st.rerun()
 
+    # --- SECTION SESSIONS EN DIRECT ---
     with st.expander("🟢 Administrateurs actuellement connectés en direct"):
       st.write("Voici la liste des administrateurs actifs sur le dashboard :")
       for adm_email, last_seen in st.session_state.live_admins.items():
@@ -508,19 +475,18 @@ elif menu == "Espace Administrateur":
 
       details_chaussures = []
       for col, prix_unit in chaussures_cols.items():
-        if col in df.columns:
-          df_marque = df[df[col] == "Je veux"]
-          if not df_marque.empty:
-            decompte = df_marque["Pointure Chaussures"].value_counts()
-            for pointure, qté in decompte.items():
-              cout_total_ligne = int(qté) * prix_unit
-              details_chaussures.append({
-                  "Marque de Chaussure": col.replace("Chaussures - ", ""),
-                  "Pointure": pointure,
-                  "Prix unitaire": f"{prix_unit:,} F",
-                  "Quantité": int(qté),
-                  "Coût Total": f"{cout_total_ligne:,} F",
-              })
+        df_marque = df[df[col] == "Je veux"]
+        if not df_marque.empty:
+          decompte = df_marque["Pointure Chaussures"].value_counts()
+          for pointure, qté in decompte.items():
+            cout_total_ligne = int(qté) * prix_unit
+            details_chaussures.append({
+                "Marque de Chaussure": col.replace("Chaussures - ", ""),
+                "Pointure": pointure,
+                "Prix unitaire": f"{prix_unit:,} F",
+                "Quantité": int(qté),
+                "Coût Total": f"{cout_total_ligne:,} F",
+            })
 
       if details_chaussures:
         df_details_chaussures = pd.DataFrame(details_chaussures)
@@ -550,9 +516,10 @@ elif menu == "Espace Administrateur":
         total = 0
         manquants = []
         for article, prix in PRIX_UNITAIRES.items():
-          if article in row and row[article] == "Je veux":
+          if row[article] == "Je veux":
             total += prix
             if "Chaussures" in article:
+              # Intègre clairement le nom de la chaussure et la pointure choisie par l'étudiant
               nom_chaussure = article.replace("Chaussures - ", "")
               manquants.append(
                   f"{nom_chaussure} (Pointure {row['Pointure Chaussures']})"
@@ -588,7 +555,7 @@ elif menu == "Espace Administrateur":
       if not df_edit.equals(df[colonnes_a_afficher]):
         df["Payé"] = df_edit["Payé"]
         sauvegarder_donnees(df)
-        st.success("✅ Statut de paiement mis à jour avec succès sur Google Sheets !")
+        st.success("✅ Statut de paiement mis à jour avec succès !")
         st.rerun()
 
       st.markdown("<br>", unsafe_allow_html=True)
@@ -638,11 +605,6 @@ elif menu == "Espace Administrateur":
 
       with st.expander("⚙️ Zone dangereuse"):
         if st.button("🗑️ Effacer toutes les données"):
-          try:
-            client = get_google_sheet_client()
-            sheet = client.open(GSHEET_NAME).sheet1
-            sheet.clear()
-            st.success("Toutes les données ont été effacées de Google Sheets.")
+          if os.path.exists(DB_FILE):
+            os.remove(DB_FILE)
             st.rerun()
-          except Exception as e:
-            st.error(f"Erreur : {e}")
