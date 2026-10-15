@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+from github import Github
+import io
 import os
 import pandas as pd
 import streamlit as st
@@ -8,7 +10,7 @@ st.set_page_config(
     page_title="Gestion des EPI - UCAC-ICAM", page_icon="🦺", layout="wide"
 )
 
-# Fichier de stockage des données
+# Nom du fichier et configuration GitHub
 DB_FILE = "demandes_epi_officiel.csv"
 
 # Dictionnaire des prix unitaires officiels
@@ -37,6 +39,76 @@ ADMIN_EMAILS = [
 ]
 
 
+# CONNEXION ET SYNCHRONISATION GITHUB
+def get_github_repo():
+  try:
+    g = Github(st.secrets["GITHUB_TOKEN"])
+    repo = g.get_repo(st.secrets["GITHUB_REPO"])
+    return repo
+  except Exception as e:
+    return None
+
+
+def charger_donnees():
+  colonnes_defaut = [
+      "Date",
+      "Nom",
+      "Prénom",
+      "Téléphone",
+      "Promotion",
+      "Résidence",
+      "Pointure Chaussures",
+      "Payé",
+  ] + list(PRIX_UNITAIRES.keys())
+
+  try:
+    repo = get_github_repo()
+    if repo:
+      file_content = repo.get_contents(DB_FILE)
+      decoded_content = file_content.decoded_content.decode("utf-8-sig")
+      df = pd.read_csv(io.StringIO(decoded_content), dtype=str)
+    else:
+      raise Exception("Impossible de joindre le dépôt GitHub.")
+
+    if "Payé" in df.columns:
+      df["Payé"] = df["Payé"].apply(
+          lambda x: True if str(x).strip().lower() in ["payé", "true", "1"]
+          else False
+      )
+    else:
+      df["Payé"] = False
+
+    df["Payé"] = df["Payé"].astype(bool)
+    return df
+  except Exception:
+    # Si le fichier n'existe pas encore sur GitHub, on retourne un DataFrame vide
+    return pd.DataFrame(columns=colonnes_defaut)
+
+
+def sauvegarder_donnees(df):
+  try:
+    repo = get_github_repo()
+    if repo:
+      csv_buffer = io.StringIO()
+      df.to_csv(csv_buffer, index=False, encoding="utf-8-sig")
+      content = csv_buffer.getvalue()
+
+      try:
+        file_content = repo.get_contents(DB_FILE)
+        repo.update_file(
+            DB_FILE,
+            "Mise à jour automatique des données EPI",
+            content,
+            file_content.sha,
+        )
+      except Exception:
+        repo.create_file(
+            DB_FILE, "Création du fichier de données EPI", content
+        )
+  except Exception as e:
+    st.error(f"Erreur lors de la sauvegarde sur GitHub : {e}")
+
+
 # GESTION DES SESSIONS EN DIRECT (LIVE ATTENDANCE)
 if "live_admins" not in st.session_state:
   st.session_state.live_admins = {}
@@ -50,43 +122,6 @@ def nettoyer_et_mettre_a_jour_presence(email):
     if now - last_seen < timedelta(minutes=5):
       admins_actifs[adm] = last_seen
   st.session_state.live_admins = admins_actifs
-
-
-# Fonction pour charger les données
-def charger_donnees():
-  if os.path.exists(DB_FILE):
-    df = pd.read_csv(DB_FILE, dtype=str, encoding="utf-8-sig")
-
-    if "Payé" in df.columns:
-      df["Payé"] = df["Payé"].apply(
-          lambda x: True if str(x).strip().lower() in ["payé", "true"] else False
-      )
-    elif "Statut Paiement" in df.columns:
-      df["Payé"] = df["Statut Paiement"].apply(
-          lambda x: True if str(x).strip().lower() == "payé" else False
-      )
-    else:
-      df["Payé"] = False
-
-    df["Payé"] = df["Payé"].astype(bool)
-    return df
-  else:
-    colonnes = [
-        "Date",
-        "Nom",
-        "Prénom",
-        "Téléphone",
-        "Promotion",
-        "Résidence",
-        "Pointure Chaussures",
-        "Payé",
-    ] + list(PRIX_UNITAIRES.keys())
-    return pd.DataFrame(columns=colonnes)
-
-
-# Fonction pour sauvegarder les données
-def sauvegarder_donnees(df):
-  df.to_csv(DB_FILE, index=False, encoding="utf-8-sig")
 
 
 # --- MENU DE NAVIGATION ---
@@ -252,7 +287,7 @@ if menu == "Espace Étudiant (L1 / BP)":
           montant_total += PRIX_UNITAIRES[article]
           articles_demandes.append(article)
 
-      if not df.empty:
+      if not df.empty and "Nom" in df.columns and "Prénom" in df.columns:
         existant = (df["Nom"] == nom) & (df["Prénom"] == prenom)
         if existant.any():
           df = df[~existant]
@@ -279,8 +314,8 @@ if menu == "Espace Étudiant (L1 / BP)":
       sauvegarder_donnees(df)
 
       st.success(
-          f"✅ Merci {prenom} ! Tes informations ont bien été transmises à"
-          " l'administration."
+          f"✅ Merci {prenom} ! Tes informations ont bien été transmises et"
+          " sauvegardées sur GitHub."
       )
 
       st.markdown("---")
@@ -387,7 +422,6 @@ elif menu == "Espace Administrateur":
             " passe."
         )
   else:
-    # Mettre à jour la présence en direct
     nettoyer_et_mettre_a_jour_presence(st.session_state.current_admin_email)
 
     col_status1, col_status2 = st.columns([3, 1])
@@ -408,7 +442,6 @@ elif menu == "Espace Administrateur":
         st.session_state.admin_connecte = False
         st.rerun()
 
-    # --- SECTION SESSIONS EN DIRECT ---
     with st.expander("🟢 Administrateurs actuellement connectés en direct"):
       st.write("Voici la liste des administrateurs actifs sur le dashboard :")
       for adm_email, last_seen in st.session_state.live_admins.items():
@@ -475,18 +508,19 @@ elif menu == "Espace Administrateur":
 
       details_chaussures = []
       for col, prix_unit in chaussures_cols.items():
-        df_marque = df[df[col] == "Je veux"]
-        if not df_marque.empty:
-          decompte = df_marque["Pointure Chaussures"].value_counts()
-          for pointure, qté in decompte.items():
-            cout_total_ligne = int(qté) * prix_unit
-            details_chaussures.append({
-                "Marque de Chaussure": col.replace("Chaussures - ", ""),
-                "Pointure": pointure,
-                "Prix unitaire": f"{prix_unit:,} F",
-                "Quantité": int(qté),
-                "Coût Total": f"{cout_total_ligne:,} F",
-            })
+        if col in df.columns:
+          df_marque = df[df[col] == "Je veux"]
+          if not df_marque.empty:
+            decompte = df_marque["Pointure Chaussures"].value_counts()
+            for pointure, qté in decompte.items():
+              cout_total_ligne = int(qté) * prix_unit
+              details_chaussures.append({
+                  "Marque de Chaussure": col.replace("Chaussures - ", ""),
+                  "Pointure": pointure,
+                  "Prix unitaire": f"{prix_unit:,} F",
+                  "Quantité": int(qté),
+                  "Coût Total": f"{cout_total_ligne:,} F",
+              })
 
       if details_chaussures:
         df_details_chaussures = pd.DataFrame(details_chaussures)
@@ -516,10 +550,9 @@ elif menu == "Espace Administrateur":
         total = 0
         manquants = []
         for article, prix in PRIX_UNITAIRES.items():
-          if row[article] == "Je veux":
+          if article in row and row[article] == "Je veux":
             total += prix
             if "Chaussures" in article:
-              # Intègre clairement le nom de la chaussure et la pointure choisie par l'étudiant
               nom_chaussure = article.replace("Chaussures - ", "")
               manquants.append(
                   f"{nom_chaussure} (Pointure {row['Pointure Chaussures']})"
@@ -555,7 +588,7 @@ elif menu == "Espace Administrateur":
       if not df_edit.equals(df[colonnes_a_afficher]):
         df["Payé"] = df_edit["Payé"]
         sauvegarder_donnees(df)
-        st.success("✅ Statut de paiement mis à jour avec succès !")
+        st.success("✅ Statut de paiement mis à jour et sauvegardé sur GitHub !")
         st.rerun()
 
       st.markdown("<br>", unsafe_allow_html=True)
@@ -589,7 +622,7 @@ elif menu == "Espace Administrateur":
           sauvegarder_donnees(df)
           st.success(
               f"✅ L'étudiant {etudiant_a_supprimer} a été supprimé avec"
-              " succès."
+              " succès et mis à jour sur GitHub."
           )
           st.rerun()
 
@@ -605,6 +638,16 @@ elif menu == "Espace Administrateur":
 
       with st.expander("⚙️ Zone dangereuse"):
         if st.button("🗑️ Effacer toutes les données"):
-          if os.path.exists(DB_FILE):
-            os.remove(DB_FILE)
-            st.rerun()
+          try:
+            repo = get_github_repo()
+            if repo:
+              file_content = repo.get_contents(DB_FILE)
+              repo.delete_file(
+                  DB_FILE,
+                  "Suppression de toutes les données",
+                  file_content.sha,
+              )
+              st.success("Toutes les données ont été effacées du dépôt GitHub.")
+              st.rerun()
+          except Exception as e:
+            st.error(f"Erreur : {e}")
